@@ -83,6 +83,7 @@ export interface MenuBlock {
   status: BlockStatus;
   groups: MenuGroup[];
   source_files: SourceFile[];
+  skipped_duplicates?: string[];
 }
 
 export type Locale = "fr" | "en";
@@ -103,6 +104,9 @@ export interface Onboarding {
   device: Device;
   step: Step;
   confirmed: ConfirmedFlags;
+  published: boolean;
+  feedback_submitted: boolean;
+  csat: number | null;
   legal: LegalBlock;
   banking: BankingBlock;
   menu: MenuBlock;

@@ -8,7 +8,8 @@ export type ReviewState = "clean" | "low_confidence";
 interface ParseStatusProps {
   status: BlockStatus;
   reviewState?: ReviewState;
-  onRetry?: () => void;
+  parsingCount?: number;
+  onReplace?: () => void;
   onManual?: () => void;
 }
 
@@ -28,7 +29,7 @@ const isLowConfidence = computed(() => isReady.value && props.reviewState === "l
       <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" />
       <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v3a5 5 0 0 0-5 5H4Z" />
     </svg>
-    <p class="text-sm font-medium text-summit-800">{{ t("parse.reading") }}</p>
+    <p class="text-sm font-medium text-summit-800">{{ t("parse.reading", parsingCount ?? 1) }}</p>
   </div>
 
   <div v-else-if="isError" class="card flex flex-col gap-3 border-rose-200 bg-rose-50/70 p-4">
@@ -41,7 +42,7 @@ const isLowConfidence = computed(() => isReady.value && props.reviewState === "l
       <p class="text-sm font-medium text-rose-800">{{ t("parse.errorTitle") }}</p>
     </div>
     <div class="flex flex-wrap gap-2 pl-11">
-      <button v-if="onRetry" type="button" class="btn-soft px-4 py-2 text-sm" @click="onRetry">{{ t("parse.retryRead") }}</button>
+      <button v-if="onReplace" type="button" class="btn-soft px-4 py-2 text-sm" @click="onReplace">{{ t("uploader.replace") }}</button>
       <button v-if="onManual" type="button" class="btn-ghost px-4 py-2 text-sm" @click="onManual">{{ t("parse.manualEntry") }}</button>
     </div>
   </div>
@@ -58,8 +59,8 @@ const isLowConfidence = computed(() => isReady.value && props.reviewState === "l
     </div>
   </div>
 
-  <div v-else-if="isReady" class="card flex items-start gap-3 border-emerald-200 bg-emerald-50/70 p-4">
-    <span class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+  <div v-else-if="isReady" class="card flex items-center gap-3 border-emerald-200 bg-emerald-50/70 p-4">
+    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
       <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
         <path
           fill-rule="evenodd"

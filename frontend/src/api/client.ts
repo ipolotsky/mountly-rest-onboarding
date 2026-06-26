@@ -95,6 +95,11 @@ export async function confirmStep(id: string, step: Step): Promise<Onboarding> {
   return response.data;
 }
 
+export async function publishOnboarding(id: string): Promise<Onboarding> {
+  const response = await http.post<Onboarding>(`/onboarding/${id}/publish`);
+  return response.data;
+}
+
 export async function submitFeedback(id: string, payload: FeedbackPayload): Promise<{ ok: true }> {
   const response = await http.post<{ ok: true }>(`/onboarding/${id}/feedback`, payload);
   return response.data;

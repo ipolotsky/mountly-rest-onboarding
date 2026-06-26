@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
 import type { PriceVariant } from "@/types/contract";
+import { amountForEdit, normalizeAmount } from "@/domain/prices";
 
 const QUICK_CHIPS = ["25 cl", "33 cl", "50 cl", "Verre", "Bouteille"];
 
 interface VariantTableProps {
   value: PriceVariant[];
   onChange: (value: PriceVariant[]) => void;
+  onCollapse?: (remaining: PriceVariant) => void;
 }
 
 const props = defineProps<VariantTableProps>();
@@ -18,8 +20,9 @@ function updateLabel(index: number, label: string): void {
   props.onChange(next);
 }
 
-function updateAmount(index: number, amount: string): void {
-  const next = props.value.map((x, i) => (i === index ? { label: x.label, amount: amount.length > 0 ? amount : null } : x));
+function commitAmount(index: number, amount: string): void {
+  const normalized = normalizeAmount(amount);
+  const next = props.value.map((x, i) => (i === index ? { label: x.label, amount: normalized.length > 0 ? normalized : null } : x));
   props.onChange(next);
 }
 
@@ -28,7 +31,18 @@ function addVariant(label: string | null): void {
 }
 
 function removeVariant(index: number): void {
-  props.onChange(props.value.filter((_x, i) => i !== index));
+  const remaining = props.value.filter((_x, i) => i !== index);
+  if (remaining.length === 0 && props.onCollapse != null) {
+    const removed = props.value[index];
+    props.onCollapse({ label: null, amount: removed?.amount ?? null });
+    return;
+  }
+  if (remaining.length === 1 && props.onCollapse != null) {
+    const last = remaining[0];
+    props.onCollapse({ label: null, amount: last?.amount ?? null });
+    return;
+  }
+  props.onChange(remaining);
 }
 
 function chipUsed(chip: string): boolean {
@@ -47,14 +61,18 @@ function chipUsed(chip: string): boolean {
           :placeholder="t('menu.variantLabel')"
           @input="updateLabel(index, ($event.target as HTMLInputElement).value)"
         />
-        <input
-          type="text"
-          inputmode="decimal"
-          class="input-field w-24 py-2 text-sm"
-          :value="variant.amount ?? ''"
-          :placeholder="t('menu.variantAmount')"
-          @input="updateAmount(index, ($event.target as HTMLInputElement).value)"
-        />
+        <div class="relative w-24 shrink-0">
+          <input
+            type="text"
+            inputmode="decimal"
+            class="input-field w-full py-2 pr-7 text-sm"
+            :value="amountForEdit(variant.amount)"
+            :placeholder="t('menu.variantAmount')"
+            @blur="commitAmount(index, ($event.target as HTMLInputElement).value)"
+            @keydown.enter.prevent="commitAmount(index, ($event.target as HTMLInputElement).value)"
+          />
+          <span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-sm text-slate-400">€</span>
+        </div>
         <button
           type="button"
           class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-500"

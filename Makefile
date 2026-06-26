@@ -2,13 +2,17 @@
 COMPOSE_LOCAL := docker compose -f docker-compose.local.yml
 COMPOSE_PROD  := docker compose -f docker-compose.production.yml
 
-.PHONY: help up down logs build sh-app test test-live fmt deploy
+.PHONY: help up dev-backend down logs build sh-app test test-live fmt deploy
 
 help: ## List commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
 
-up: ## Start local stack (postgres + app:8000 + web:5173)
+up: ## Start full local stack in Docker (postgres + app:8000 + web:5173)
 	$(COMPOSE_LOCAL) up --build
+
+dev-backend: ## Backend only in Docker (postgres + app:8000, autoreload); run the frontend with `npm run dev`
+	$(COMPOSE_LOCAL) up -d postgres
+	$(COMPOSE_LOCAL) up --build app
 
 down: ## Stop local stack
 	$(COMPOSE_LOCAL) down

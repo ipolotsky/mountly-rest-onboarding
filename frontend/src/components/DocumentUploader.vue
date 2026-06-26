@@ -53,6 +53,8 @@ function openFilePicker(): void {
 function openCamera(): void {
   cameraInput.value?.click();
 }
+
+defineExpose({ openFilePicker });
 </script>
 
 <template>

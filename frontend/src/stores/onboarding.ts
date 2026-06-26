@@ -31,6 +31,8 @@ import {
   emptyOnboarding,
   userField,
 } from "@/domain/factory";
+import { diffMenu } from "@/domain/menuDiff";
+import type { ItemHighlight } from "@/domain/menuDiff";
 
 const ONBOARDING_ID_KEY = "onboarding_id";
 
@@ -55,6 +57,8 @@ interface OnboardingStoreState {
   error: string | null;
   lastRemovedGroup: RemovedGroupSnapshot | null;
   parsedSnapshots: ParsedSnapshots;
+  menuHighlights: Map<string, ItemHighlight>;
+  skippedDuplicates: string[];
 }
 
 function deepClone<T>(value: T): T {
@@ -96,6 +100,8 @@ export const useOnboardingStore = defineStore("onboarding", {
     error: null,
     lastRemovedGroup: null,
     parsedSnapshots: { legal: null, banking: null, menu: null },
+    menuHighlights: new Map(),
+    skippedDuplicates: [],
   }),
 
   getters: {
@@ -259,12 +265,15 @@ export const useOnboardingStore = defineStore("onboarding", {
       if (this.onboarding == null) {
         return false;
       }
+      const before = deepClone(this.onboarding.menu);
       this.parsing = true;
       this.onboarding.menu.status = "parsing";
       try {
         const block = await apiParseMenu(this.onboarding.id, files, note);
+        this.skippedDuplicates = block.skipped_duplicates ?? [];
         this.onboarding.menu = block;
         this.parsedSnapshots.menu = deepClone(block);
+        this.menuHighlights = diffMenu(before, block);
         return block.status !== "couldnt_parse";
       } catch {
         this.onboarding.menu.status = "couldnt_parse";
@@ -272,6 +281,31 @@ export const useOnboardingStore = defineStore("onboarding", {
       } finally {
         this.parsing = false;
       }
+    },
+
+    clearMenuHighlights(): void {
+      this.menuHighlights = new Map();
+    },
+
+    dismissSkippedDuplicates(): void {
+      this.skippedDuplicates = [];
+    },
+
+    deleteSourceFile(fileId: string): void {
+      if (this.onboarding == null) {
+        return;
+      }
+      const menu = this.onboarding.menu;
+      menu.source_files = menu.source_files.filter((x) => x.id !== fileId);
+      menu.groups = menu.groups.filter((group) => {
+        const ids = group.source_file_ids ?? [];
+        const onlyFromThisFile = ids.length === 1 && ids[0] === fileId && group.name !== UNCATEGORIZED_GROUP_NAME;
+        return !onlyFromThisFile;
+      });
+      for (const group of menu.groups) {
+        group.source_file_ids = group.source_file_ids.filter((x) => x !== fileId);
+      }
+      void this.persistMenu();
     },
 
     async persistMenu(): Promise<void> {
@@ -346,7 +380,7 @@ export const useOnboardingStore = defineStore("onboarding", {
       void this.persistMenu();
     },
 
-    addItem(groupId: string): MenuItem | null {
+    addItem(groupId: string, name?: string | null): MenuItem | null {
       if (this.onboarding == null) {
         return null;
       }
@@ -355,6 +389,10 @@ export const useOnboardingStore = defineStore("onboarding", {
         return null;
       }
       const item = emptyMenuItem();
+      if (name != null && name.length > 0) {
+        item.name = userField(name);
+        item.provenance = "user_added";
+      }
       group.items.push(item);
       void this.persistMenu();
       return item;

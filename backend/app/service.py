@@ -1,4 +1,7 @@
+import hashlib
 import uuid
+from datetime import UTC, datetime
+from typing import NamedTuple
 
 from sqlalchemy.orm import Session
 
@@ -27,6 +30,11 @@ from app.validators import (
 )
 
 PRESERVED_PROVENANCE = ("user_edited", "user_added", "user_confirmed")
+
+
+class StoreResult(NamedTuple):
+    ingested: list[IngestedFile]
+    skipped_duplicates: list[str]
 
 
 class UploadFile:
@@ -77,7 +85,7 @@ class OnboardingService:
 
     def parse_legal(self, onboarding_id: str, files: list[UploadFile]) -> LegalBlock:
         row = self._require(onboarding_id)
-        ingested = self._store_and_ingest(onboarding_id, files)
+        ingested = self._store_and_ingest(onboarding_id, files).ingested
         existing = LegalBlock.model_validate(row.legal or {})
         state = run_pipeline(
             OnboardingState(
@@ -96,7 +104,7 @@ class OnboardingService:
 
     def parse_banking(self, onboarding_id: str, files: list[UploadFile]) -> BankingBlock:
         row = self._require(onboarding_id)
-        ingested = self._store_and_ingest(onboarding_id, files)
+        ingested = self._store_and_ingest(onboarding_id, files).ingested
         existing = BankingBlock.model_validate(row.banking or {})
         existing_legal = LegalBlock.model_validate(row.legal or {})
         state = run_pipeline(
@@ -117,12 +125,15 @@ class OnboardingService:
 
     def parse_menu(self, onboarding_id: str, files: list[UploadFile]) -> MenuBlock:
         row = self._require(onboarding_id)
-        ingested = self._store_and_ingest(onboarding_id, files)
         existing = MenuBlock.model_validate(row.menu or {})
+        active_file_ids = [source.id for source in existing.source_files]
+        store = self._store_and_ingest(
+            onboarding_id, files, dedupe=True, active_file_ids=active_file_ids
+        )
         state = run_pipeline(
             OnboardingState(
                 document_type="menu",
-                files=ingested,
+                files=store.ingested,
                 existing_menu=existing,
             )
         )
@@ -132,6 +143,8 @@ class OnboardingService:
         self._emit_parse_events(onboarding_id, row, "menu", state)
         self._session.add(row)
         self._session.commit()
+        # skipped_duplicates is a parse-time-only signal; it is not persisted on the row.
+        block.skipped_duplicates = store.skipped_duplicates or None
         return block
 
     def save_legal(self, onboarding_id: str, block: LegalBlock) -> LegalBlock:
@@ -156,6 +169,8 @@ class OnboardingService:
     def save_menu(self, onboarding_id: str, block: MenuBlock) -> MenuBlock:
         row = self._require(onboarding_id)
         block = _rewrite_source_urls(onboarding_id, block)
+        # skipped_duplicates is a parse-only signal; never persist it from an edit.
+        block.skipped_duplicates = None
         row.menu = block.model_dump()
         self._session.add(row)
         self._session.commit()
@@ -182,6 +197,9 @@ class OnboardingService:
 
     def feedback(self, onboarding_id: str, csat: int, answers: dict) -> None:
         row = self._require(onboarding_id)
+        row.csat = csat
+        row.feedback_submitted = True
+        row.feedback_at = datetime.now(UTC)
         analytics.track(
             self._session,
             kind="feedback_submitted",
@@ -190,7 +208,15 @@ class OnboardingService:
             locale=row.locale,
             props={"csat": csat, "answers": answers},
         )
+        self._session.add(row)
         self._session.commit()
+
+    def publish(self, onboarding_id: str) -> Onboarding:
+        row = self._require(onboarding_id)
+        row.published = True
+        self._session.add(row)
+        self._session.commit()
+        return self._to_schema(row)
 
     def assemble_restaurant(self, onboarding_id: str) -> Onboarding:
         return self._to_schema(self._require(onboarding_id))
@@ -215,10 +241,25 @@ class OnboardingService:
         return row
 
     def _store_and_ingest(
-        self, onboarding_id: str, files: list[UploadFile]
-    ) -> list[IngestedFile]:
+        self,
+        onboarding_id: str,
+        files: list[UploadFile],
+        dedupe: bool = False,
+        active_file_ids: list[str] | None = None,
+    ) -> StoreResult:
         ingested: list[IngestedFile] = []
+        skipped: list[str] = []
+        known_hashes = self._known_content_hashes(active_file_ids or []) if dedupe else set()
+
         for upload in files:
+            content_hash = hashlib.sha256(upload.content).hexdigest()
+            if dedupe and content_hash in known_hashes:
+                # Identical file already uploaded to this onboarding: don't store it,
+                # don't ingest it, and don't send it to the model.
+                skipped.append(upload.filename)
+                continue
+            known_hashes.add(content_hash)
+
             file_id = storage.new_file_id()
             result = ingest_file(file_id, upload.filename, upload.media_type, upload.content)
             path = storage.save_file(onboarding_id, file_id, upload.content)
@@ -230,6 +271,7 @@ class OnboardingService:
                     media_type=result.media_type,
                     kind=result.kind,
                     path=path,
+                    content_hash=content_hash,
                 )
             )
             analytics.track(
@@ -240,7 +282,22 @@ class OnboardingService:
             )
             ingested.append(result)
         self._session.flush()
-        return ingested
+        return StoreResult(ingested=ingested, skipped_duplicates=skipped)
+
+    def _known_content_hashes(self, file_ids: list[str]) -> set[str]:
+        # Dedupe only against files CURRENTLY in the menu, not the whole upload history,
+        # so a file the owner deleted can be uploaded again.
+        if not file_ids:
+            return set()
+        rows = (
+            self._session.query(StoredFile.content_hash)
+            .filter(
+                StoredFile.id.in_(file_ids),
+                StoredFile.content_hash.isnot(None),
+            )
+            .all()
+        )
+        return {row[0] for row in rows}
 
     def _emit_parse_events(
         self, onboarding_id: str, row: OnboardingRow, doc_type: str, state: OnboardingState
@@ -300,6 +357,9 @@ class OnboardingService:
             )
 
     def _to_schema(self, row: OnboardingRow) -> Onboarding:
+        menu = MenuBlock.model_validate(row.menu or {})
+        # skipped_duplicates is a parse-time-only signal; never surface it on a full read.
+        menu.skipped_duplicates = None
         return Onboarding(
             id=row.id,
             created_at=row.created_at.isoformat(),
@@ -308,9 +368,12 @@ class OnboardingService:
             device=row.device,
             step=row.step,
             confirmed=Confirmed.model_validate(row.confirmed or {}),
+            published=bool(row.published),
+            feedback_submitted=bool(row.feedback_submitted),
+            csat=row.csat,
             legal=LegalBlock.model_validate(row.legal or {}),
             banking=BankingBlock.model_validate(row.banking or {}),
-            menu=MenuBlock.model_validate(row.menu or {}),
+            menu=menu,
         )
 
 

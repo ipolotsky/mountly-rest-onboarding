@@ -153,6 +153,13 @@ def confirm(
     return _guard(onboarding_id, lambda: service.confirm(onboarding_id, body.step))
 
 
+@app.post("/api/onboarding/{onboarding_id}/publish", response_model=Onboarding)
+def publish(
+    onboarding_id: str, service: OnboardingService = Depends(_service)
+) -> Onboarding:
+    return _guard(onboarding_id, lambda: service.publish(onboarding_id))
+
+
 @app.post("/api/onboarding/{onboarding_id}/feedback", response_model=OkResponse)
 def feedback(
     onboarding_id: str, body: FeedbackRequest, service: OnboardingService = Depends(_service)

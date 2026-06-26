@@ -4,7 +4,7 @@ import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import type { Field, FeedbackPayload, LegalFieldName } from "@/types/contract";
 import { useOnboarding } from "@/composables/useOnboarding";
-import { submitFeedback } from "@/api/client";
+import { publishOnboarding, submitFeedback } from "@/api/client";
 import StatusBadges from "@/components/StatusBadges.vue";
 import MenuDisplay from "@/components/MenuDisplay.vue";
 import FeedbackForm from "@/components/FeedbackForm.vue";
@@ -24,8 +24,9 @@ const { t } = useI18n();
 const router = useRouter();
 const onboarding = useOnboarding();
 
-const published = ref(false);
 const copied = ref(false);
+const publishing = ref(false);
+const feedbackJustSubmitted = ref(false);
 
 onMounted(async () => {
   await onboarding.ensureSession();
@@ -36,6 +37,9 @@ const data = computed(() => onboarding.onboarding.value);
 const legal = computed(() => data.value?.legal ?? null);
 const banking = computed(() => data.value?.banking ?? null);
 const menu = computed(() => data.value?.menu ?? null);
+
+const published = computed(() => data.value?.published === true);
+const feedbackSubmitted = computed(() => data.value?.feedback_submitted === true || feedbackJustSubmitted.value);
 
 const restaurantName = computed(() => legal.value?.fields.legal_name.value ?? t("common.placeholder"));
 const address = computed(() => legal.value?.fields.registered_address.value ?? t("common.placeholder"));
@@ -56,11 +60,28 @@ function editListing(): void {
   void router.push({ name: "legal" });
 }
 
-function publish(): void {
-  published.value = true;
+async function publish(): Promise<void> {
+  const id = data.value?.id;
+  if (id == null || publishing.value || published.value) {
+    return;
+  }
+  publishing.value = true;
+  try {
+    const updated = await publishOnboarding(id);
+    onboarding.store.onboarding = updated;
+  } catch {
+    if (onboarding.store.onboarding != null) {
+      onboarding.store.onboarding.published = true;
+    }
+  } finally {
+    publishing.value = false;
+  }
 }
 
 async function copyLink(): Promise<void> {
+  if (!published.value) {
+    return;
+  }
   const id = data.value?.id ?? "";
   const url = `${window.location.origin}/restaurant?id=${id}`;
   try {
@@ -83,6 +104,11 @@ async function onFeedback(payload: FeedbackPayload): Promise<void> {
     await submitFeedback(id, payload);
   } catch {
     // Feedback failures must not block the page.
+  }
+  feedbackJustSubmitted.value = true;
+  if (onboarding.store.onboarding != null) {
+    onboarding.store.onboarding.feedback_submitted = true;
+    onboarding.store.onboarding.csat = payload.csat;
   }
   onboarding.track("feedback_submitted", { csat: payload.csat });
 }
@@ -149,15 +175,15 @@ async function onFeedback(payload: FeedbackPayload): Promise<void> {
 
       <section class="flex flex-col gap-2 sm:flex-row sm:items-center">
         <button type="button" class="btn-soft py-3 sm:flex-1" @click="editListing">{{ t("restaurant.editListing") }}</button>
-        <button type="button" class="btn-ghost py-3 sm:flex-1" @click="copyLink">
+        <button type="button" class="btn-ghost py-3 sm:flex-1" :disabled="!published" @click="copyLink">
           {{ copied ? t("restaurant.copied") : t("restaurant.copyLink") }}
         </button>
-        <button type="button" class="btn-primary py-3 sm:flex-1" :disabled="published" @click="publish">
+        <button type="button" class="btn-primary py-3 sm:flex-1" :disabled="published || publishing" @click="publish">
           {{ published ? t("restaurant.published") : t("restaurant.publish") }}
         </button>
       </section>
 
-      <FeedbackForm :on-submit="onFeedback" />
+      <FeedbackForm v-if="!feedbackSubmitted" :on-submit="onFeedback" />
     </div>
   </div>
 </template>

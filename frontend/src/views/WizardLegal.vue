@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
-import type { Field, LegalFieldName } from "@/types/contract";
+import type { BlockStatus, Field, LegalFieldName } from "@/types/contract";
 import { useOnboarding } from "@/composables/useOnboarding";
 import { sirenValid, siretValid } from "@/domain/validators";
 import { checkFiles } from "@/domain/upload";
@@ -11,7 +11,6 @@ import DocumentUploader from "@/components/DocumentUploader.vue";
 import ParseStatus from "@/components/ParseStatus.vue";
 import ReviewField from "@/components/ReviewField.vue";
 import RegistryBadge from "@/components/RegistryBadge.vue";
-import ClarificationNote from "@/components/ClarificationNote.vue";
 import type { ReviewState } from "@/components/ParseStatus.vue";
 
 const FIELD_ORDER: LegalFieldName[] = [
@@ -28,6 +27,7 @@ const router = useRouter();
 const onboarding = useOnboarding();
 
 const manualMode = ref(false);
+const uploader = ref<InstanceType<typeof DocumentUploader> | null>(null);
 
 onMounted(async () => {
   await onboarding.ensureSession();
@@ -66,6 +66,14 @@ const showFields = computed(() => {
   return manualMode.value || status === "ready" || status === "couldnt_parse";
 });
 
+const displayStatus = computed<BlockStatus>(() => {
+  const status = legal.value?.status ?? "empty";
+  if (manualMode.value && status === "couldnt_parse") {
+    return "empty";
+  }
+  return status;
+});
+
 const canConfirm = computed(() => {
   const fields = legal.value?.fields;
   if (fields == null) {
@@ -90,12 +98,8 @@ async function onFiles(files: File[]): Promise<void> {
   }
 }
 
-async function onNote(note: string): Promise<void> {
-  onboarding.track("reparse_requested", { step: 1 });
-  const ok = await onboarding.store.parseLegal([], note);
-  if (!ok) {
-    onboarding.track("error_shown", { step: 1, error_type: "couldnt_parse" });
-  }
+function replaceDocument(): void {
+  uploader.value?.openFilePicker();
 }
 
 function editField(name: LegalFieldName, value: string | null): void {
@@ -159,6 +163,7 @@ function verifiedMessage(name: LegalFieldName): string | undefined {
       </header>
 
       <DocumentUploader
+        ref="uploader"
         :on-files="onFiles"
         :prompt="t('legal.uploadPrompt')"
         :hint="t('legal.uploadHint')"
@@ -167,9 +172,9 @@ function verifiedMessage(name: LegalFieldName): string | undefined {
       />
 
       <ParseStatus
-        :status="legal?.status ?? 'empty'"
+        :status="displayStatus"
         :review-state="reviewState"
-        :on-retry="() => onboarding.store.parseLegal([], null)"
+        :on-replace="replaceDocument"
         :on-manual="enterManual"
         class="mb-5"
       />
@@ -188,10 +193,6 @@ function verifiedMessage(name: LegalFieldName): string | undefined {
           :error-message="fieldError(name)"
           :verified-message="verifiedMessage(name)"
         />
-
-        <div class="flex flex-wrap items-center gap-2 pt-1">
-          <ClarificationNote :on-submit="onNote" :disabled="onboarding.parsing.value" />
-        </div>
       </div>
     </div>
 

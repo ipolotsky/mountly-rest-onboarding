@@ -4,7 +4,9 @@ import { useI18n } from "vue-i18n";
 import type { MenuGroup, MenuItem, PriceVariant } from "@/types/contract";
 import { UNCATEGORIZED_GROUP_NAME } from "@/domain/factory";
 import MenuItemRow from "@/components/MenuItemRow.vue";
+import type { ItemHighlight } from "@/components/MenuItemRow.vue";
 import AddItemGhostRow from "@/components/AddItemGhostRow.vue";
+import ConfirmDialog from "@/components/ConfirmDialog.vue";
 
 interface MenuSectionProps {
   group: MenuGroup;
@@ -16,6 +18,7 @@ interface MenuSectionProps {
   onItemDescription: (itemId: string, value: string | null) => void;
   onItemPrices: (itemId: string, value: PriceVariant[]) => void;
   sortToReview?: boolean;
+  highlights?: Map<string, ItemHighlight>;
 }
 
 const props = defineProps<MenuSectionProps>();
@@ -23,6 +26,11 @@ const props = defineProps<MenuSectionProps>();
 const { t } = useI18n();
 
 const collapsed = ref(false);
+const confirmOpen = ref(false);
+
+function highlightFor(itemId: string): ItemHighlight {
+  return props.highlights?.get(itemId) ?? null;
+}
 
 const isBucket = computed(() => props.group.name === UNCATEGORIZED_GROUP_NAME);
 const itemCount = computed(() => props.group.items.length);
@@ -47,6 +55,19 @@ function onTitleInput(event: Event): void {
 
 function toggleCollapse(): void {
   collapsed.value = !collapsed.value;
+}
+
+function requestRemoveGroup(): void {
+  confirmOpen.value = true;
+}
+
+function confirmRemoveGroup(): void {
+  confirmOpen.value = false;
+  props.onRemoveGroup();
+}
+
+function cancelRemoveGroup(): void {
+  confirmOpen.value = false;
 }
 </script>
 
@@ -85,7 +106,7 @@ function toggleCollapse(): void {
         type="button"
         class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-300 hover:bg-rose-50 hover:text-rose-500"
         :aria-label="t('menu.removeGroup')"
-        @click="onRemoveGroup"
+        @click="requestRemoveGroup"
       >
         <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M6 7h12M9 7V5h6v2m-7 0 1 12h6l1-12" />
@@ -98,6 +119,7 @@ function toggleCollapse(): void {
         v-for="item in orderedItems"
         :key="item.id"
         :item="item"
+        :highlight="highlightFor(item.id)"
         :on-name="(value) => onItemName(item.id, value)"
         :on-description="(value) => onItemDescription(item.id, value)"
         :on-prices="(value) => onItemPrices(item.id, value)"
@@ -105,5 +127,12 @@ function toggleCollapse(): void {
       />
       <AddItemGhostRow :on-add="onAddItem" />
     </div>
+
+    <ConfirmDialog
+      :open="confirmOpen"
+      :message="t('menu.confirmRemoveSection')"
+      :on-confirm="confirmRemoveGroup"
+      :on-cancel="cancelRemoveGroup"
+    />
   </section>
 </template>

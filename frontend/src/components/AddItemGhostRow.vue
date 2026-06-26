@@ -29,9 +29,6 @@ async function commit(keepFocus: boolean): Promise<void> {
 
 <template>
   <div class="flex items-center gap-2 rounded-xl border border-dashed border-summit-200 px-3 py-2 transition focus-within:border-summit-400 focus-within:bg-summit-50/40">
-    <svg class="h-4 w-4 shrink-0 text-summit-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-      <path stroke-linecap="round" d="M12 5v14M5 12h14" />
-    </svg>
     <input
       ref="inputElement"
       v-model="draft"

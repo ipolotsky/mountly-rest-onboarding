@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, DateTime, Integer, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import TypeDecorator
@@ -39,6 +39,13 @@ class Onboarding(Base):
     banking: Mapped[dict] = mapped_column(JsonColumn, default=dict)
     menu: Mapped[dict] = mapped_column(JsonColumn, default=dict)
 
+    published: Mapped[bool] = mapped_column(Boolean, default=False)
+    feedback_submitted: Mapped[bool] = mapped_column(Boolean, default=False)
+    csat: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    feedback_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
 
 class Event(Base):
     __tablename__ = "event"
@@ -63,4 +70,5 @@ class StoredFile(Base):
     media_type: Mapped[str] = mapped_column(String(128))
     kind: Mapped[str] = mapped_column(String(16))
     path: Mapped[str] = mapped_column(String(512))
+    content_hash: Mapped[str | None] = mapped_column(String(64), index=True, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)

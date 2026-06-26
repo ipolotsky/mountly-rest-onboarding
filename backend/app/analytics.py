@@ -91,7 +91,6 @@ def _row_status(row: Onboarding) -> str:
 def admin_onboardings(session: Session) -> list[AdminOnboardingRow]:
     rows = session.execute(select(Onboarding)).scalars().all()
     cost_by_onboarding = _cost_by_onboarding(session)
-    csat_by_onboarding = _csat_by_onboarding(session)
 
     output: list[AdminOnboardingRow] = []
     for row in rows:
@@ -108,7 +107,7 @@ def admin_onboardings(session: Session) -> list[AdminOnboardingRow]:
                 ttv_ms=_time_to_value_ms(session, row.id),
                 ai_cost_eur=round(cost_by_onboarding.get(row.id, 0.0), 6),
                 registry_status=registry_status,
-                csat=csat_by_onboarding.get(row.id),
+                csat=row.csat,
             )
         )
     return output
@@ -126,31 +125,20 @@ def _cost_by_onboarding(session: Session) -> dict[str, float]:
     return totals
 
 
-def _csat_by_onboarding(session: Session) -> dict[str, int]:
-    events = (
-        session.execute(select(Event).where(Event.kind == "feedback_submitted")).scalars().all()
-    )
-    result: dict[str, int] = {}
-    for event in events:
-        if event.onboarding_id is None:
-            continue
-        csat = event.props.get("csat")
-        if isinstance(csat, int):
-            result[event.onboarding_id] = csat
-    return result
-
-
 def _time_to_value_ms(session: Session, onboarding_id: str) -> int | None:
+    # A resumed onboarding can carry more than one started/completed event; take the
+    # earliest of each so this never raises MultipleResultsFound (which would 500 the
+    # whole admin dashboard).
     started = session.execute(
         select(Event)
         .where(Event.kind == "onboarding_started", Event.onboarding_id == onboarding_id)
         .order_by(Event.created_at.asc())
-    ).scalar_one_or_none()
+    ).scalars().first()
     completed = session.execute(
         select(Event)
         .where(Event.kind == "onboarding_completed", Event.onboarding_id == onboarding_id)
         .order_by(Event.created_at.asc())
-    ).scalar_one_or_none()
+    ).scalars().first()
     if started is None or completed is None:
         return None
     return int((completed.created_at - started.created_at).total_seconds() * 1000)

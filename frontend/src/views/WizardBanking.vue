@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
-import type { BankingFieldName, Field } from "@/types/contract";
+import type { BankingFieldName, BlockStatus, Field } from "@/types/contract";
 import { useOnboarding } from "@/composables/useOnboarding";
 import { bicValid, ibanValidation } from "@/domain/validators";
 import { checkFiles } from "@/domain/upload";
@@ -10,7 +10,6 @@ import WizardChrome from "@/components/WizardChrome.vue";
 import DocumentUploader from "@/components/DocumentUploader.vue";
 import ParseStatus from "@/components/ParseStatus.vue";
 import ReviewField from "@/components/ReviewField.vue";
-import ClarificationNote from "@/components/ClarificationNote.vue";
 import type { ReviewState } from "@/components/ParseStatus.vue";
 
 const FIELD_ORDER: BankingFieldName[] = ["account_holder", "bank_name", "iban", "bic"];
@@ -20,6 +19,7 @@ const router = useRouter();
 const onboarding = useOnboarding();
 
 const manualMode = ref(false);
+const uploader = ref<InstanceType<typeof DocumentUploader> | null>(null);
 
 onMounted(async () => {
   await onboarding.ensureSession();
@@ -60,6 +60,14 @@ const showFields = computed(() => {
   return manualMode.value || status === "ready" || status === "couldnt_parse";
 });
 
+const displayStatus = computed<BlockStatus>(() => {
+  const status = banking.value?.status ?? "empty";
+  if (manualMode.value && status === "couldnt_parse") {
+    return "empty";
+  }
+  return status;
+});
+
 const holderMismatch = computed(() => banking.value?.cross_doc_holder_match === false);
 
 const canConfirm = computed(() => {
@@ -86,12 +94,8 @@ async function onFiles(files: File[]): Promise<void> {
   }
 }
 
-async function onNote(note: string): Promise<void> {
-  onboarding.track("reparse_requested", { step: 2 });
-  const ok = await onboarding.store.parseBanking([], note);
-  if (!ok) {
-    onboarding.track("error_shown", { step: 2, error_type: "couldnt_parse" });
-  }
+function replaceDocument(): void {
+  uploader.value?.openFilePicker();
 }
 
 function editField(name: BankingFieldName, value: string | null): void {
@@ -148,6 +152,7 @@ function fieldError(name: BankingFieldName): string | undefined {
       </header>
 
       <DocumentUploader
+        ref="uploader"
         :on-files="onFiles"
         :prompt="t('banking.uploadPrompt')"
         :hint="t('banking.uploadHint')"
@@ -156,9 +161,9 @@ function fieldError(name: BankingFieldName): string | undefined {
       />
 
       <ParseStatus
-        :status="banking?.status ?? 'empty'"
+        :status="displayStatus"
         :review-state="reviewState"
-        :on-retry="() => onboarding.store.parseBanking([], null)"
+        :on-replace="replaceDocument"
         :on-manual="enterManual"
         class="mb-5"
       />
@@ -181,10 +186,6 @@ function fieldError(name: BankingFieldName): string | undefined {
           :error-message="fieldError(name)"
           :suspect-indexes="name === 'iban' ? ibanResult.suspectIndexes : []"
         />
-
-        <div class="flex flex-wrap items-center gap-2 pt-1">
-          <ClarificationNote :on-submit="onNote" :disabled="onboarding.parsing.value" />
-        </div>
       </div>
     </div>
 

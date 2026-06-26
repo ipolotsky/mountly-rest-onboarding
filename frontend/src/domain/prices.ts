@@ -1,11 +1,44 @@
 import type { PriceVariant } from "@/types/contract";
 
-function withSymbol(amount: string): string {
-  const trimmed = amount.trim();
-  if (trimmed.includes("€") || /eur/i.test(trimmed)) {
-    return trimmed;
+// Strip currency symbols/spaces and turn a European decimal comma into a dot.
+function stripToNumeric(raw: string): string {
+  return raw
+    .replace(/€/g, "")
+    .replace(/eur/gi, "")
+    .replace(/\s/g, "")
+    .replace(",", ".")
+    .trim();
+}
+
+// Normalize a user-entered amount to a plain double string with at most 2 decimals.
+// Returns "" when the input is empty or not a number (so the field becomes price-less).
+export function normalizeAmount(raw: string): string {
+  const cleaned = stripToNumeric(raw);
+  if (cleaned.length === 0) {
+    return "";
   }
-  return `${trimmed} €`;
+  const parsed = Number(cleaned);
+  if (Number.isNaN(parsed)) {
+    return "";
+  }
+  const rounded = Math.round(parsed * 100) / 100;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2);
+}
+
+// The value shown in a numeric input while editing: numeric only, no currency symbol.
+export function amountForEdit(amount: string | null): string {
+  if (amount == null) {
+    return "";
+  }
+  return stripToNumeric(amount);
+}
+
+function withSymbol(amount: string): string {
+  const normalized = normalizeAmount(amount);
+  if (normalized.length === 0) {
+    return amount.trim();
+  }
+  return `${normalized} €`;
 }
 
 export function formatVariant(variant: PriceVariant): string | null {

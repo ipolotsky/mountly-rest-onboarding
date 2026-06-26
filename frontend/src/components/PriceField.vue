@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { PriceVariant } from "@/types/contract";
+import { amountForEdit, normalizeAmount } from "@/domain/prices";
 import VariantTable from "@/components/VariantTable.vue";
 
 interface PriceFieldProps {
@@ -13,40 +14,66 @@ const props = defineProps<PriceFieldProps>();
 
 const { t } = useI18n();
 
-const expanded = ref(props.value.length > 1 || props.value.some((x) => x.label != null));
+const hasVariants = computed(() => props.value.length > 1 || props.value.some((x) => x.label != null));
 
-const hasMultiple = computed(() => props.value.length > 1 || expanded.value);
-const singleAmount = computed(() => props.value[0]?.amount ?? "");
-const isPriceless = computed(() => props.value.length === 0 || props.value.every((x) => x.amount == null));
+const expanded = ref(hasVariants.value);
 
-function updateSingle(amount: string): void {
-  const trimmed = amount.trim();
-  if (trimmed.length === 0) {
+watch(hasVariants, (value) => {
+  if (value) {
+    expanded.value = true;
+  }
+});
+
+const showTable = computed(() => expanded.value);
+const draft = ref(amountForEdit(props.value[0]?.amount ?? null));
+
+watch(
+  () => props.value,
+  (value) => {
+    if (!showTable.value) {
+      draft.value = amountForEdit(value[0]?.amount ?? null);
+    }
+  },
+  { deep: true },
+);
+
+const isPriceless = computed(() => props.value.length === 0 || props.value.every((x) => x.amount == null || x.amount.length === 0));
+
+function commitSingle(): void {
+  const normalized = normalizeAmount(draft.value);
+  draft.value = normalized;
+  if (normalized.length === 0) {
     props.onChange([]);
     return;
   }
-  props.onChange([{ label: null, amount: trimmed }]);
+  props.onChange([{ label: null, amount: normalized }]);
 }
 
 function expandToVariants(): void {
   expanded.value = true;
-  if (props.value.length === 0) {
-    props.onChange([{ label: null, amount: null }]);
-  }
+  const seed = props.value.length > 0 ? props.value : [{ label: null, amount: null }];
+  props.onChange(seed);
+}
+
+function onCollapse(remaining: PriceVariant): void {
+  expanded.value = false;
+  draft.value = amountForEdit(remaining.amount);
+  props.onChange([{ label: null, amount: remaining.amount }]);
 }
 </script>
 
 <template>
   <div>
-    <div v-if="!hasMultiple" class="flex items-center gap-2">
+    <div v-if="!showTable" class="flex items-center gap-2">
       <div class="relative flex-1">
         <input
+          v-model="draft"
           type="text"
           inputmode="decimal"
           class="input-field py-2 pr-9 text-sm"
-          :value="singleAmount"
           :placeholder="t('menu.noPrice')"
-          @input="updateSingle(($event.target as HTMLInputElement).value)"
+          @blur="commitSingle"
+          @keydown.enter.prevent="commitSingle"
         />
         <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">€</span>
       </div>
@@ -55,7 +82,7 @@ function expandToVariants(): void {
       </button>
     </div>
 
-    <VariantTable v-else :value="value" :on-change="onChange" />
+    <VariantTable v-else :value="value" :on-change="onChange" :on-collapse="onCollapse" />
 
     <p v-if="isPriceless" class="mt-1 inline-flex items-center gap-1.5 text-xs text-slate-500">
       <span class="rounded-full bg-slate-100 px-2 py-0.5 font-medium">{{ t("menu.onSite") }}</span>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { useOnboarding } from "@/composables/useOnboarding";
@@ -7,7 +7,6 @@ import { checkFiles } from "@/domain/upload";
 import WizardChrome from "@/components/WizardChrome.vue";
 import DocumentUploader from "@/components/DocumentUploader.vue";
 import ParseStatus from "@/components/ParseStatus.vue";
-import ClarificationNote from "@/components/ClarificationNote.vue";
 import MenuBuilder from "@/components/MenuBuilder.vue";
 
 const { t } = useI18n();
@@ -21,20 +20,13 @@ onMounted(async () => {
 
 const menu = computed(() => onboarding.menu.value);
 const block = computed(() => onboarding.onboarding.value);
-const hasDocument = computed(() => (menu.value?.status ?? "empty") !== "empty");
 const hasItems = computed(() => (menu.value?.groups ?? []).some((x) => x.items.length > 0));
 const showBuilder = computed(() => {
   const status = menu.value?.status ?? "empty";
   return status === "ready" || status === "couldnt_parse" || (menu.value?.groups.length ?? 0) > 0;
 });
-
-const itemTotal = computed(() => {
-  let count = 0;
-  for (const group of menu.value?.groups ?? []) {
-    count += group.items.length;
-  }
-  return count;
-});
+const showUploader = computed(() => !showBuilder.value);
+const parsingCount = ref(1);
 
 async function onFiles(files: File[]): Promise<void> {
   const check = checkFiles(files);
@@ -42,19 +34,12 @@ async function onFiles(files: File[]): Promise<void> {
     onboarding.track("error_shown", { step: 3, error_type: check.rejection });
     return;
   }
+  parsingCount.value = files.length;
   for (let i = 0; i < files.length; i += 1) {
     const file = files[i];
     onboarding.track("file_uploaded", { step: 3, file_type: file.type, bytes: file.size, upload_index: i });
   }
   const ok = await onboarding.store.parseMenu(files, null);
-  if (!ok) {
-    onboarding.track("error_shown", { step: 3, error_type: "couldnt_parse" });
-  }
-}
-
-async function onNote(note: string): Promise<void> {
-  onboarding.track("reparse_requested", { step: 3 });
-  const ok = await onboarding.store.parseMenu([], note);
   if (!ok) {
     onboarding.track("error_shown", { step: 3, error_type: "couldnt_parse" });
   }
@@ -78,22 +63,19 @@ async function confirm(): Promise<void> {
       <p class="mt-1 text-sm text-slate-600">{{ t("menu.subtitle") }}</p>
     </header>
 
-    <div class="card mb-5 p-4 sm:p-5">
-      <DocumentUploader
-        :on-files="onFiles"
-        :prompt="t('menu.uploadPrompt')"
-        :hint="t('menu.uploadHint')"
-        :has-document="hasDocument"
-        :multiple="true"
-      />
-      <div v-if="hasDocument" class="mt-3">
-        <ClarificationNote :on-submit="onNote" :disabled="onboarding.parsing.value" />
-      </div>
-    </div>
+    <DocumentUploader
+      v-if="showUploader"
+      :on-files="onFiles"
+      :prompt="t('menu.uploadPrompt')"
+      :hint="t('menu.uploadHint')"
+      :has-document="false"
+      :multiple="true"
+      class="mb-5"
+    />
 
     <ParseStatus
       :status="menu?.status ?? 'empty'"
-      :on-retry="() => onboarding.store.parseMenu([], null)"
+      :parsing-count="parsingCount"
       class="mb-5"
     />
 
@@ -103,8 +85,7 @@ async function confirm(): Promise<void> {
       v-if="showBuilder"
       class="fixed inset-x-0 bottom-0 z-20 border-t border-summit-100 bg-white/95 px-4 py-3 backdrop-blur safe-bottom sm:static sm:mt-6 sm:border-0 sm:bg-transparent sm:p-0"
     >
-      <div class="mx-auto flex max-w-6xl items-center justify-between gap-3">
-        <span class="text-sm text-slate-500">{{ t("menu.itemCount", itemTotal) }}</span>
+      <div class="mx-auto flex max-w-6xl items-center justify-end gap-3">
         <button type="button" class="btn-primary py-3.5 text-base sm:px-10" :disabled="!hasItems" @click="confirm">
           {{ t("common.looksGood") }}
         </button>

@@ -79,6 +79,8 @@ interface MenuBlock {
   status: BlockStatus;
   groups: MenuGroup[];
   source_files: SourceFile[];
+  skipped_duplicates?: string[];   // only on POST /menu/parse responses: filenames identical (by
+                                   // content hash) to an already-uploaded file and therefore skipped
 }
 
 interface Onboarding {
@@ -89,6 +91,9 @@ interface Onboarding {
   device: "mobile" | "desktop";
   step: 1 | 2 | 3 | 4;           // 4 = final restaurant page
   confirmed: { legal: boolean; banking: boolean; menu: boolean };
+  published: boolean;            // set by POST /publish; gates the read-only page's "copy link"
+  feedback_submitted: boolean;   // true once feedback was given (so the form is not reshown on resume)
+  csat: number | null;           // 1..5 if feedback was given
   legal: LegalBlock;
   banking: BankingBlock;
   menu: MenuBlock;
@@ -108,6 +113,7 @@ interface Onboarding {
 | POST | `/api/onboarding/{id}/menu/parse` | multipart: `files[]`, `note?` | `MenuBlock` (merged) |
 | PUT | `/api/onboarding/{id}/menu` | `MenuBlock` | `MenuBlock` |
 | POST | `/api/onboarding/{id}/confirm` | `{ step }` | `Onboarding` (advanced) |
+| POST | `/api/onboarding/{id}/publish` | — | `Onboarding` (`published: true`) |
 | POST | `/api/onboarding/{id}/feedback` | `{ csat: 1..5, answers: {...} }` | `{ ok: true }` |
 | GET | `/api/onboarding/{id}/restaurant` | — | `Onboarding` (read-only view; same shape) |
 | POST | `/api/events` | `{ events: AnalyticsEvent[] }` | `{ ok: true }` |

@@ -39,6 +39,16 @@ describe("menu builder mutations", () => {
     expect(store.menu?.groups[0]?.items.length).toBe(1);
   });
 
+  it("adds an item with its name in one atomic call (regression: name was lost)", () => {
+    const store = seedStore();
+    const group = store.addGroup("Pizzas");
+    const item = store.addItem(group!.id, "Margherita");
+    expect(item).not.toBeNull();
+    const stored = store.menu?.groups[0]?.items[0];
+    expect(stored?.name.value).toBe("Margherita");
+    expect(stored?.provenance).toBe("user_added");
+  });
+
   it("removes an item", () => {
     const store = seedStore();
     const group = store.addGroup("Plats");
@@ -112,5 +122,33 @@ describe("menu builder mutations", () => {
     const stored = store.menu?.groups[0]?.items[0];
     expect(stored?.name.value).toBe("Margherita");
     expect(stored?.name.provenance).toBe("user_edited");
+  });
+});
+
+describe("menu source-file deletion (item 5)", () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
+  it("removes the file and drops groups that came only from that file", () => {
+    const store = seedStore();
+    if (store.onboarding == null) {
+      throw new Error("seed failed");
+    }
+    store.onboarding.menu.source_files = [
+      { id: "f1", kind: "image", filename: "a.jpg", url: "/a" },
+      { id: "f2", kind: "image", filename: "b.jpg", url: "/b" },
+    ];
+    store.onboarding.menu.groups = [
+      { id: "g1", name: "From F1", items: [], provenance: "parser", source_file_ids: ["f1"] },
+      { id: "g2", name: "Shared", items: [], provenance: "parser", source_file_ids: ["f1", "f2"] },
+    ];
+
+    store.deleteSourceFile("f1");
+
+    expect(store.menu?.source_files.map((x) => x.id)).toEqual(["f2"]);
+    expect(store.menu?.groups.find((x) => x.id === "g1")).toBeUndefined();
+    const shared = store.menu?.groups.find((x) => x.id === "g2");
+    expect(shared?.source_file_ids).toEqual(["f2"]);
   });
 });

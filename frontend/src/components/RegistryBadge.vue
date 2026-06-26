@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import type { RegistryInfo } from "@/types/contract";
+
+type RegistryVariant = "match" | "no_match" | "unavailable";
 
 interface RegistryBadgeProps {
   registry: RegistryInfo | null;
@@ -11,7 +13,9 @@ const props = defineProps<RegistryBadgeProps>();
 
 const { t } = useI18n();
 
-const variant = computed<"match" | "no_match" | "unavailable" | null>(() => {
+const tooltipOpen = ref(false);
+
+const variant = computed<RegistryVariant | null>(() => {
   if (props.registry == null) {
     return null;
   }
@@ -39,12 +43,20 @@ const label = computed(() => {
   }
   return "";
 });
+
+function toggleTooltip(): void {
+  tooltipOpen.value = !tooltipOpen.value;
+}
+
+function closeTooltip(): void {
+  tooltipOpen.value = false;
+}
 </script>
 
 <template>
   <span
     v-if="variant != null"
-    class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold"
+    class="relative inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold"
     :class="{
       'bg-emerald-50 text-emerald-700': variant === 'match',
       'bg-amber-50 text-amber-700': variant === 'no_match',
@@ -62,5 +74,39 @@ const label = computed(() => {
       <path d="M9.1 2.5a1 1 0 0 1 1.8 0l7 12.5A1 1 0 0 1 17 16.5H3a1 1 0 0 1-.9-1.5l7-12.5Z" />
     </svg>
     {{ label }}
+
+    <button
+      v-if="variant === 'match'"
+      type="button"
+      class="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-100 text-[10px] font-bold text-emerald-700 transition hover:bg-emerald-200"
+      :aria-label="t('registry.explainLabel')"
+      @click="toggleTooltip"
+      @blur="closeTooltip"
+      @mouseenter="tooltipOpen = true"
+      @mouseleave="closeTooltip"
+    >
+      ?
+    </button>
+
+    <transition name="fade">
+      <span
+        v-if="variant === 'match' && tooltipOpen"
+        role="tooltip"
+        class="absolute left-0 top-full z-30 mt-2 w-64 rounded-lg bg-slate-900 px-3 py-2 text-xs font-normal leading-relaxed text-white shadow-lg"
+      >
+        {{ t("registry.tooltip") }}
+      </span>
+    </transition>
   </span>
 </template>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.15s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>

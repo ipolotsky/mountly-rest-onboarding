@@ -3,6 +3,9 @@ import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import type { MenuItem, PriceVariant } from "@/types/contract";
 import PriceField from "@/components/PriceField.vue";
+import ConfirmDialog from "@/components/ConfirmDialog.vue";
+
+export type ItemHighlight = "new" | "changed" | null;
 
 interface MenuItemRowProps {
   item: MenuItem;
@@ -10,11 +13,14 @@ interface MenuItemRowProps {
   onDescription: (value: string | null) => void;
   onPrices: (value: PriceVariant[]) => void;
   onRemove: () => void;
+  highlight?: ItemHighlight;
 }
 
 const props = defineProps<MenuItemRowProps>();
 
 const { t } = useI18n();
+
+const confirmOpen = ref(false);
 
 const isFlagged = computed(
   () => props.item.name.status === "low_confidence" || props.item.description.status === "low_confidence",
@@ -37,12 +43,28 @@ function onDescriptionInput(event: Event): void {
 function toggleDescription(): void {
   descriptionOpen.value = !descriptionOpen.value;
 }
+
+function requestRemove(): void {
+  confirmOpen.value = true;
+}
+
+function confirmRemove(): void {
+  confirmOpen.value = false;
+  props.onRemove();
+}
+
+function cancelRemove(): void {
+  confirmOpen.value = false;
+}
 </script>
 
 <template>
   <div
-    class="rounded-xl border bg-white p-3 transition"
-    :class="isFlagged ? 'border-l-4 border-l-amber-400 border-summit-100' : 'border-summit-100'"
+    class="rounded-xl border p-3 transition-colors duration-[1500ms]"
+    :class="[
+      isFlagged ? 'border-l-4 border-l-amber-400 border-summit-100' : 'border-summit-100',
+      highlight === 'new' ? 'bg-emerald-50' : highlight === 'changed' ? 'bg-sky-50' : 'bg-white',
+    ]"
   >
     <div class="flex items-start gap-2">
       <div class="min-w-0 flex-1 space-y-1.5">
@@ -78,7 +100,7 @@ function toggleDescription(): void {
         type="button"
         class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-300 transition hover:bg-rose-50 hover:text-rose-500"
         :aria-label="t('menu.queueRemove')"
-        @click="onRemove"
+        @click="requestRemove"
       >
         <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M6 7h12M9 7V5h6v2m-7 0 1 12h6l1-12" />
@@ -86,5 +108,12 @@ function toggleDescription(): void {
       </button>
     </div>
     <span v-if="isNew" class="sr-only">new</span>
+
+    <ConfirmDialog
+      :open="confirmOpen"
+      :message="t('menu.confirmRemoveItem')"
+      :on-confirm="confirmRemove"
+      :on-cancel="cancelRemove"
+    />
   </div>
 </template>

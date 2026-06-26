@@ -84,6 +84,7 @@ class MenuBlock(BaseModel):
     status: BlockStatus = "empty"
     groups: list[MenuGroup] = Field(default_factory=list)
     source_files: list[SourceFile] = Field(default_factory=list)
+    skipped_duplicates: list[str] | None = None
 
 
 class Confirmed(BaseModel):
@@ -100,6 +101,9 @@ class Onboarding(BaseModel):
     device: Device = "desktop"
     step: Step = 1
     confirmed: Confirmed = Field(default_factory=Confirmed)
+    published: bool = False
+    feedback_submitted: bool = False
+    csat: int | None = None
     legal: LegalBlock = Field(default_factory=LegalBlock)
     banking: BankingBlock = Field(default_factory=BankingBlock)
     menu: MenuBlock = Field(default_factory=MenuBlock)
