@@ -114,9 +114,7 @@ def admin_onboardings(session: Session) -> list[AdminOnboardingRow]:
 
 
 def _cost_by_onboarding(session: Session) -> dict[str, float]:
-    events = (
-        session.execute(select(Event).where(Event.kind == "parse_completed")).scalars().all()
-    )
+    events = session.execute(select(Event).where(Event.kind == "parse_completed")).scalars().all()
     totals: dict[str, float] = defaultdict(float)
     for event in events:
         if event.onboarding_id is None:
@@ -129,16 +127,24 @@ def _time_to_value_ms(session: Session, onboarding_id: str) -> int | None:
     # A resumed onboarding can carry more than one started/completed event; take the
     # earliest of each so this never raises MultipleResultsFound (which would 500 the
     # whole admin dashboard).
-    started = session.execute(
-        select(Event)
-        .where(Event.kind == "onboarding_started", Event.onboarding_id == onboarding_id)
-        .order_by(Event.created_at.asc())
-    ).scalars().first()
-    completed = session.execute(
-        select(Event)
-        .where(Event.kind == "onboarding_completed", Event.onboarding_id == onboarding_id)
-        .order_by(Event.created_at.asc())
-    ).scalars().first()
+    started = (
+        session.execute(
+            select(Event)
+            .where(Event.kind == "onboarding_started", Event.onboarding_id == onboarding_id)
+            .order_by(Event.created_at.asc())
+        )
+        .scalars()
+        .first()
+    )
+    completed = (
+        session.execute(
+            select(Event)
+            .where(Event.kind == "onboarding_completed", Event.onboarding_id == onboarding_id)
+            .order_by(Event.created_at.asc())
+        )
+        .scalars()
+        .first()
+    )
     if started is None or completed is None:
         return None
     return int((completed.created_at - started.created_at).total_seconds() * 1000)
@@ -156,9 +162,7 @@ def admin_metrics(session: Session) -> AdminMetrics:
 
 def _funnel(rows: list[Onboarding]) -> list[FunnelStage]:
     stages = ["started", "legal_done", "banking_done", "menu_done", "publishable"]
-    counts: dict[str, dict[str, int]] = {
-        stage: {"mobile": 0, "desktop": 0} for stage in stages
-    }
+    counts: dict[str, dict[str, int]] = {stage: {"mobile": 0, "desktop": 0} for stage in stages}
     for row in rows:
         device = "mobile" if row.device == "mobile" else "desktop"
         counts["started"][device] += 1
@@ -177,9 +181,7 @@ def _funnel(rows: list[Onboarding]) -> list[FunnelStage]:
 
 
 def _ai_cost(session: Session, rows: list[Onboarding]) -> AdminCost:
-    events = (
-        session.execute(select(Event).where(Event.kind == "parse_completed")).scalars().all()
-    )
+    events = session.execute(select(Event).where(Event.kind == "parse_completed")).scalars().all()
     by_model: dict[str, float] = defaultdict(float)
     by_step: dict[str, float] = defaultdict(float)
     total_cost = 0.0
@@ -220,18 +222,14 @@ def _quality(session: Session, rows: list[Onboarding]) -> AdminQuality:
     }
 
     registry_events = (
-        session.execute(
-            select(Event).where(Event.kind == "registry_verification_result")
-        )
+        session.execute(select(Event).where(Event.kind == "registry_verification_result"))
         .scalars()
         .all()
     )
     registry_success = sum(
         1 for event in registry_events if event.props.get("lookup_status") == "match"
     )
-    registry_rate = (
-        round(registry_success / len(registry_events), 4) if registry_events else 0.0
-    )
+    registry_rate = round(registry_success / len(registry_events), 4) if registry_events else 0.0
 
     menu_added, menu_total = _menu_hand_added(rows)
     menu_hand_added_share = round(menu_added / menu_total, 4) if menu_total else 0.0
@@ -285,12 +283,7 @@ def _low_confidence_rate(rows: list[Onboarding]) -> tuple[int, int]:
 
 def _friction(session: Session, rows: list[Onboarding]) -> list[FrictionStage]:
     stage_steps = [("step1", 1), ("step2", 2), ("step3", 3)]
-    error_events = (
-        session.execute(select(Event).where(Event.kind == "error_shown")).scalars().all()
-    )
-    confirm_events = (
-        session.execute(select(Event).where(Event.kind == "step_confirmed")).scalars().all()
-    )
+    error_events = session.execute(select(Event).where(Event.kind == "error_shown")).scalars().all()
 
     reason_by_step: dict[int, str | None] = {}
     for step in (1, 2, 3):
@@ -300,12 +293,7 @@ def _friction(session: Session, rows: list[Onboarding]) -> list[FrictionStage]:
                 reasons[str(event.props.get("error_type", "unknown"))] += 1
         reason_by_step[step] = max(reasons, key=reasons.get) if reasons else None
 
-    duration_by_step: dict[int, list[float]] = defaultdict(list)
-    for event in confirm_events:
-        step = event.props.get("step")
-        duration = event.props.get("duration_ms")
-        if isinstance(step, int) and isinstance(duration, (int, float)):
-            duration_by_step[step].append(float(duration))
+    duration_by_step = _time_on_step_ms(session)
 
     output: list[FrictionStage] = []
     for label, step in stage_steps:
@@ -323,3 +311,46 @@ def _friction(session: Session, rows: list[Onboarding]) -> list[FrictionStage]:
             )
         )
     return output
+
+
+def _time_on_step_ms(session: Session) -> dict[int, list[float]]:
+    # Real time-on-step is the gap between landing on a step (step_viewed) and confirming
+    # it (step_confirmed) for the same onboarding. The client's own duration_ms only timed
+    # the confirm round-trip, so the median always collapsed to ~0; this measures dwell time.
+    viewed = session.execute(select(Event).where(Event.kind == "step_viewed")).scalars().all()
+    confirmed = session.execute(select(Event).where(Event.kind == "step_confirmed")).scalars().all()
+
+    first_viewed: dict[tuple[str, int], object] = {}
+    for event in viewed:
+        key = _step_key(event)
+        if key is None:
+            continue
+        current = first_viewed.get(key)
+        if current is None or event.created_at < current:
+            first_viewed[key] = event.created_at
+
+    first_confirmed: dict[tuple[str, int], object] = {}
+    for event in confirmed:
+        key = _step_key(event)
+        if key is None:
+            continue
+        current = first_confirmed.get(key)
+        if current is None or event.created_at < current:
+            first_confirmed[key] = event.created_at
+
+    durations: dict[int, list[float]] = defaultdict(list)
+    for key, viewed_at in first_viewed.items():
+        confirmed_at = first_confirmed.get(key)
+        if confirmed_at is None:
+            continue
+        delta_ms = (confirmed_at - viewed_at).total_seconds() * 1000
+        if delta_ms > 0:
+            durations[key[1]].append(delta_ms)
+    return durations
+
+
+def _step_key(event: Event) -> tuple[str, int] | None:
+    step = event.props.get("step")
+    if event.onboarding_id is None or not isinstance(step, int):
+        return None
+    return (event.onboarding_id, step)

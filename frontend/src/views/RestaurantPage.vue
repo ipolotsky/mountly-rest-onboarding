@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import type { Field, FeedbackPayload, LegalFieldName } from "@/types/contract";
 import { useOnboarding } from "@/composables/useOnboarding";
 import { publishOnboarding, submitFeedback } from "@/api/client";
@@ -21,14 +21,29 @@ const LEGAL_ORDER: LegalFieldName[] = [
 const BANKING_ORDER = ["account_holder", "bank_name", "iban", "bic"] as const;
 
 const { t } = useI18n();
+const route = useRoute();
 const router = useRouter();
 const onboarding = useOnboarding();
 
 const copied = ref(false);
 const publishing = ref(false);
 const feedbackJustSubmitted = ref(false);
+const notFound = ref(false);
+
+const sharedId = computed(() => {
+  const value = route.query.id;
+  return typeof value === "string" && value.length > 0 ? value : null;
+});
+const readOnly = computed(() => sharedId.value != null);
 
 onMounted(async () => {
+  // A shared link or an admin deep-link ( /restaurant?id=… ) opens a specific onboarding
+  // read-only: load it by id without touching the visitor's own session or analytics.
+  if (sharedId.value != null) {
+    await onboarding.load(sharedId.value);
+    notFound.value = onboarding.onboarding.value == null;
+    return;
+  }
   await onboarding.ensureSession();
   onboarding.track("step_viewed", { step: 4 });
 });
@@ -70,9 +85,8 @@ async function publish(): Promise<void> {
     const updated = await publishOnboarding(id);
     onboarding.store.onboarding = updated;
   } catch {
-    if (onboarding.store.onboarding != null) {
-      onboarding.store.onboarding.published = true;
-    }
+    // Publishing gates link sharing and reads back from the server by id; if the call
+    // fails, stay unpublished so we never offer a shareable link the server didn't publish.
   } finally {
     publishing.value = false;
   }
@@ -115,7 +129,10 @@ async function onFeedback(payload: FeedbackPayload): Promise<void> {
 </script>
 
 <template>
-  <div class="pb-12">
+  <div v-if="notFound" class="mx-auto max-w-3xl px-4 py-20 text-center">
+    <p class="text-sm text-slate-500">{{ t("errors.loadFailed") }}</p>
+  </div>
+  <div v-else class="pb-12">
     <header class="ridge bg-gradient-to-b from-summit-100/80 to-transparent">
       <div class="mx-auto max-w-3xl px-4 pb-8 pt-8 sm:pt-10">
         <div class="flex items-start justify-between gap-3">
@@ -173,7 +190,7 @@ async function onFeedback(payload: FeedbackPayload): Promise<void> {
         <MenuDisplay v-if="menu != null" :menu="menu" />
       </section>
 
-      <section class="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <section v-if="!readOnly" class="flex flex-col gap-2 sm:flex-row sm:items-center">
         <button type="button" class="btn-soft py-3 sm:flex-1" @click="editListing">{{ t("restaurant.editListing") }}</button>
         <button type="button" class="btn-ghost py-3 sm:flex-1" :disabled="!published" @click="copyLink">
           {{ copied ? t("restaurant.copied") : t("restaurant.copyLink") }}
@@ -183,7 +200,7 @@ async function onFeedback(payload: FeedbackPayload): Promise<void> {
         </button>
       </section>
 
-      <FeedbackForm v-if="!feedbackSubmitted" :on-submit="onFeedback" />
+      <FeedbackForm v-if="!readOnly && !feedbackSubmitted" :on-submit="onFeedback" />
     </div>
   </div>
 </template>

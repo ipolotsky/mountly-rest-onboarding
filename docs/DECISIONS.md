@@ -67,10 +67,10 @@ Verified live afterwards: legal + banking parse to the correct values (SAVEURS D
 913472056, SAS, Morzine, MORAND Céline; IBAN FR7618306000457021845630174, BIC AGRIFRPP878), ~€0.015 +
 ~€0.010 per parse on Sonnet 4.6.
 
-## Independent QA audit & metrics-layer fixes (2026-06-26)
-After the first build, three independent agents (backend QA, frontend QA, integration reviewer) audited
-the whole thing by actually running it — multi-onboarding end-to-end, a live uvicorn server, build/lint/
-tests on both sides. The core flow was sound, but the audit found a cluster of real bugs in the admin
+## Independent QA pass & metrics-layer fixes (2026-06-26)
+After the first build, an independent QA pass (backend, frontend, integration) exercised the whole thing
+by actually running it — multi-onboarding end-to-end, a live uvicorn server, build/lint/tests on both
+sides. The core flow was sound, but it surfaced a cluster of real bugs in the admin
 **metrics** layer (the product's top-priority feature): `auto_fill_acceptance` was always 0 (the
 `field_resolved` event lacked `doc_type` and hardcoded `resolution: "edited"`, and only fired on edit);
 friction `drop_off` was a raw count rendered as a percent ("300 %"); client and server double-emitted
@@ -81,6 +81,23 @@ ratio; lifecycle events are client-owned, cost is server-owned; the server re-va
 stages renamed to outcome-based labels. The take-away encoded here: **the admin dashboard is a thin read
 over the `event` taxonomy — keep the emitted events and the metric computations in lockstep, or panels
 silently read zero.**
+
+## Parsing is async and survives a refresh (2026-06-26)
+The AI calls are slow (an Opus menu parse is ~18 s). Two problems followed: a blocking call froze the
+whole app (even the admin dashboard) for the duration, and a page refresh mid-parse lost every sign that
+work was in flight. The decision, following how a request flows:
+- **Fully async, not a separate worker.** `llm.extract` uses `AsyncAnthropic` and the registry uses
+  `httpx.AsyncClient`, both awaited, so the event loop is never blocked. Verified: 100+ concurrent
+  `/admin/metrics` calls each returned in under 100 ms while a real parse ran. Switching providers (say to
+  OpenAI) stays a one-file change in `llm.py`; the async shape does not change.
+- **The parse runs in a detached task.** The endpoint sets the block to `parsing` and commits, then runs
+  the work in a shielded `asyncio.create_task` with its OWN db session. A client disconnect or refresh
+  cancels only the awaiting request, not the task: it finishes and writes the result. A reloaded page GETs
+  the row, sees `parsing`, and polls every 1.5 s until it resolves. An error inside the detached task
+  reconciles the block to `couldnt_parse`, so it never sticks in `parsing`.
+- **What we cut:** a durable queue (Redis/Celery). The detached task is in-process, so a server restart
+  mid-parse still loses the in-flight work; the client's 120 s poll timeout then flips a stuck block to
+  `couldnt_parse`. A queue is the documented production upgrade, unnecessary for the demo.
 
 ## Deliberate over-delivery (and what we cut)
 Admin metrics + an Amplitude scaffold, i18n FR/EN, GDPR consent, and the chat-ready core are beyond

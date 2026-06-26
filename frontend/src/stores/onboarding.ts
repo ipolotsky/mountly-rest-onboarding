@@ -3,6 +3,7 @@ import type {
   BankingBlock,
   BankingFieldName,
   Device,
+  Field,
   LegalBlock,
   LegalFieldName,
   Locale,
@@ -35,8 +36,18 @@ import { diffMenu } from "@/domain/menuDiff";
 import type { ItemHighlight } from "@/domain/menuDiff";
 
 const ONBOARDING_ID_KEY = "onboarding_id";
+const PARSING_POLL_INTERVAL_MS = 1500;
+const PARSING_POLL_TIMEOUT_MS = 120000;
 
 export type SaveState = "idle" | "saving" | "saved" | "error";
+
+function blockIsParsing(onboarding: Onboarding): boolean {
+  return (
+    onboarding.legal.status === "parsing" ||
+    onboarding.banking.status === "parsing" ||
+    onboarding.menu.status === "parsing"
+  );
+}
 
 interface RemovedGroupSnapshot {
   group: MenuGroup;
@@ -59,10 +70,27 @@ interface OnboardingStoreState {
   parsedSnapshots: ParsedSnapshots;
   menuHighlights: Map<string, ItemHighlight>;
   skippedDuplicates: string[];
+  pollTimer: ReturnType<typeof setInterval> | null;
+  pollStartedAt: number | null;
 }
 
 function deepClone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function parserFieldsOnly<T extends Record<string, Field>>(fields: T): T {
+  // A resumed session has no in-memory parse snapshot. Reconstruct a conservative one from
+  // the loaded block: keep only values the parser produced (provenance "parser") so
+  // auto-fill acceptance is never over-counted from user-typed or hand-added values.
+  const clone = deepClone(fields);
+  for (const key of Object.keys(clone)) {
+    const field = (clone as Record<string, Field>)[key];
+    if (field.provenance !== "parser") {
+      field.value = null;
+      field.status = "missing";
+    }
+  }
+  return clone;
 }
 
 function storedOnboardingId(): string | null {
@@ -102,6 +130,8 @@ export const useOnboardingStore = defineStore("onboarding", {
     parsedSnapshots: { legal: null, banking: null, menu: null },
     menuHighlights: new Map(),
     skippedDuplicates: [],
+    pollTimer: null,
+    pollStartedAt: null,
   }),
 
   getters: {
@@ -174,6 +204,8 @@ export const useOnboardingStore = defineStore("onboarding", {
       try {
         const onboarding = await fetchOnboarding(id);
         this.onboarding = onboarding;
+        this.hydrateParsedSnapshotsIfNeeded();
+        this.startParsingPollIfNeeded();
       } catch {
         this.onboarding = null;
         this.error = "loadFailed";
@@ -182,7 +214,87 @@ export const useOnboardingStore = defineStore("onboarding", {
       }
     },
 
+    hydrateParsedSnapshotsIfNeeded(): void {
+      if (this.onboarding == null) {
+        return;
+      }
+      if (this.parsedSnapshots.legal == null && this.onboarding.legal.status !== "empty") {
+        const snapshot = deepClone(this.onboarding.legal);
+        snapshot.fields = parserFieldsOnly(snapshot.fields);
+        this.parsedSnapshots.legal = snapshot;
+      }
+      if (this.parsedSnapshots.banking == null && this.onboarding.banking.status !== "empty") {
+        const snapshot = deepClone(this.onboarding.banking);
+        snapshot.fields = parserFieldsOnly(snapshot.fields);
+        this.parsedSnapshots.banking = snapshot;
+      }
+      if (this.parsedSnapshots.menu == null && this.onboarding.menu.status !== "empty") {
+        this.parsedSnapshots.menu = deepClone(this.onboarding.menu);
+      }
+    },
+
+    startParsingPollIfNeeded(): void {
+      if (this.onboarding == null || !blockIsParsing(this.onboarding)) {
+        return;
+      }
+      if (this.pollTimer != null) {
+        return;
+      }
+      this.parsing = true;
+      this.pollStartedAt = Date.now();
+      this.pollTimer = setInterval(() => {
+        void this.pollParsingOnce();
+      }, PARSING_POLL_INTERVAL_MS);
+    },
+
+    async pollParsingOnce(): Promise<void> {
+      if (this.onboarding == null) {
+        this.stopParsingPoll();
+        return;
+      }
+      const id = this.onboarding.id;
+      if (this.pollStartedAt != null && Date.now() - this.pollStartedAt >= PARSING_POLL_TIMEOUT_MS) {
+        this.markStaleParsingAsFailed();
+        this.stopParsingPoll();
+        return;
+      }
+      try {
+        const onboarding = await fetchOnboarding(id);
+        this.onboarding = onboarding;
+        if (!blockIsParsing(onboarding)) {
+          this.stopParsingPoll();
+        }
+      } catch {
+        // Transient fetch error: keep polling until the timeout cap is reached.
+      }
+    },
+
+    markStaleParsingAsFailed(): void {
+      if (this.onboarding == null) {
+        return;
+      }
+      if (this.onboarding.legal.status === "parsing") {
+        this.onboarding.legal.status = "couldnt_parse";
+      }
+      if (this.onboarding.banking.status === "parsing") {
+        this.onboarding.banking.status = "couldnt_parse";
+      }
+      if (this.onboarding.menu.status === "parsing") {
+        this.onboarding.menu.status = "couldnt_parse";
+      }
+    },
+
+    stopParsingPoll(): void {
+      if (this.pollTimer != null) {
+        clearInterval(this.pollTimer);
+        this.pollTimer = null;
+      }
+      this.pollStartedAt = null;
+      this.parsing = false;
+    },
+
     clearSession(): void {
+      this.stopParsingPoll();
       localStorage.removeItem(ONBOARDING_ID_KEY);
       this.onboarding = null;
     },

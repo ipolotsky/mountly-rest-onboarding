@@ -2,7 +2,7 @@
 COMPOSE_LOCAL := docker compose -f docker-compose.local.yml
 COMPOSE_PROD  := docker compose -f docker-compose.production.yml
 
-.PHONY: help up dev-backend down logs build sh-app test test-live fmt deploy
+.PHONY: help up dev-backend down logs build sh-app test test-live seed fmt deploy
 
 help: ## List commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -31,6 +31,9 @@ test: ## Run the deterministic backend suite (no API key needed)
 
 test-live: ## Run parsing against the real Claude API on the 6 sample menus (needs ANTHROPIC_API_KEY)
 	$(COMPOSE_LOCAL) run --rm app pytest -m live
+
+seed: ## Reset and fill the local DB with demo onboardings + events for the admin dashboard
+	$(COMPOSE_LOCAL) run --rm app python -m scripts.seed_demo --reset
 
 fmt: ## Format/lint both sides
 	$(COMPOSE_LOCAL) run --rm app sh -c "ruff check --fix . && ruff format ."

@@ -121,9 +121,13 @@ interface Onboarding {
 | GET | `/api/admin/metrics` | — | `AdminMetrics` |
 
 ### Parse semantics
-- Parse endpoints are **synchronous** (these documents take seconds): the response carries the
-  updated block with its `status`. The frontend shows a loading state during the request. (The
-  contract is "submit → updated state", so it can be made async/SSE later without changing the shapes.)
+- **Parse runs in a detached background task.** A parse first sets the block to `status: "parsing"`
+  in the DB, then runs the AI work in a background task with its OWN db session, so it finishes even if
+  the page is reloaded mid-parse. The parse POST still awaits that task and returns the final block to
+  the active request (`ready`/`couldnt_parse`; menu also returns `skipped_duplicates`). On (re)load, if
+  `GET /onboarding/{id}` shows any block with `status: "parsing"`, the client **polls** `GET` until it
+  resolves — this is what keeps the loading state visible after a refresh. In-process for now; a durable
+  worker queue (Redis) is the production upgrade.
 - **Re-parse merge:** re-calling `parse` on a step never overwrites fields whose `provenance` is
   `user_edited`/`user_added`/`user_confirmed`. New menu items arrive flagged; conflicts are surfaced,
   not auto-applied. (Conflict UI is polish; "fill empties only" is the minimum.)
@@ -157,7 +161,7 @@ Taxonomy (names + the key props that make metrics computable):
 - `onboarding_started`
 - `step_viewed` `{ step }`
 - `file_uploaded` `{ step, file_type, bytes, upload_index }`
-- `parse_completed` `{ step, doc_type, model, tokens_in, tokens_out, latency_ms, cost_eur, field_count, fields_below_threshold }`
+- `parse_completed` `{ step, doc_type, model, tokens_in, tokens_out, latency_ms, cost_eur, over_cost_cap }` — emitted **server-side**, once per model usage; `cost_eur` powers the admin AI economics, `over_cost_cap` flags a usage above `COST_CAP_EUR`.
 - `field_resolved` `{ step, doc_type: "legal"|"banking"|"menu", field_name, parsed_value_present, confidence, resolution: "accepted_as_is"|"edited"|"cleared"|"added_manually"|"left_empty" }` — emitted **per parsed field when its step is confirmed** (not only on edit). `parsed_value_present` = whether the parser originally returned a value. The admin `auto_fill_acceptance` is computed from this; it buckets by `doc_type`.
 - `menu_group_resolved` `{ group_name, items_parsed, items_final, items_added_manually, items_edited, items_removed, low_confidence_items }`
 - `menu_usable_reached` `{ items_count }`
@@ -166,7 +170,7 @@ Taxonomy (names + the key props that make metrics computable):
 - `error_shown` `{ step, error_type }`
 - `step_confirmed` `{ step, duration_ms }`
 - `reparse_requested` `{ step }`
-- `abandonment` `{ last_step, last_action, max_step_reached, elapsed_ms }`  (server-derived ok)
+- `abandonment` `{ last_step, last_action, max_step_reached, elapsed_ms }` — reserved; not emitted yet. The admin funnel drop-off is derived server-side from `step_viewed`/`step_confirmed` timestamps, so this event is not required for current metrics.
 - `onboarding_completed` `{ duration_ms }`
 - `feedback_submitted` `{ csat }`
 

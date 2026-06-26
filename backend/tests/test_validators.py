@@ -31,9 +31,17 @@ def test_siren_none_is_invalid():
     assert validate_siren(None) is False
 
 
-def test_siret_luhn_length():
-    # A 14-digit SIRET built from the valid SIREN plus a valid establishment suffix.
-    assert validate_siret("91347205600015") in (True, False)
+def test_siret_example_from_error_message_is_valid():
+    # The SIRET shown in the field error ("913 472 056 00013") must itself be Luhn-valid,
+    # so the example we tell users to follow actually passes.
+    assert validate_siret("91347205600013") is True
+
+
+def test_siret_rejects_bad_checksum():
+    assert validate_siret("91347205600014") is False
+
+
+def test_siret_rejects_wrong_length():
     assert validate_siret("12345") is False
 
 

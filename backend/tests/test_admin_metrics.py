@@ -127,6 +127,41 @@ def test_friction_drop_off_is_a_ratio(client):
     assert stalled != advanced
 
 
+def test_friction_median_uses_step_view_to_confirm_gap(client):
+    from datetime import UTC, datetime, timedelta
+
+    from app.database import SessionLocal
+    from app.models import Event
+
+    onboarding_id = client.post("/api/onboarding", json={}).json()["id"]
+    base = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
+    with SessionLocal() as session:
+        session.add(
+            Event(
+                kind="step_viewed",
+                onboarding_id=onboarding_id,
+                created_at=base,
+                props={"step": 1},
+            )
+        )
+        session.add(
+            Event(
+                kind="step_confirmed",
+                onboarding_id=onboarding_id,
+                created_at=base + timedelta(seconds=42),
+                props={"step": 1},
+            )
+        )
+        session.commit()
+
+    friction_stages = client.get("/api/admin/metrics").json()["friction"]
+    friction = {stage["step"]: stage for stage in friction_stages}
+    # Median is the dwell time between landing on the step and confirming it: 42s.
+    assert friction["step1"]["median_ms"] == pytest.approx(42000, abs=1)
+    # No events for later steps -> no measurable time.
+    assert friction["step2"]["median_ms"] is None
+
+
 def test_confirm_does_not_emit_server_lifecycle_events(client):
     from app.models import Event
 

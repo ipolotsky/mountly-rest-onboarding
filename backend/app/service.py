@@ -1,12 +1,15 @@
+import asyncio
 import hashlib
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
-from typing import NamedTuple
+from typing import NamedTuple, TypeVar
 
 from sqlalchemy.orm import Session
 
 from app import analytics, storage
 from app.config import settings
+from app.database import SessionLocal
 from app.graph import OnboardingState, run_pipeline
 from app.ingest import IngestedFile, ingest_file
 from app.models import Onboarding as OnboardingRow
@@ -30,6 +33,8 @@ from app.validators import (
 )
 
 PRESERVED_PROVENANCE = ("user_edited", "user_added", "user_confirmed")
+
+_BlockT = TypeVar("_BlockT")
 
 
 class StoreResult(NamedTuple):
@@ -87,12 +92,49 @@ class OnboardingService:
         row = self._require(onboarding_id)
         ingested = self._store_and_ingest(onboarding_id, files).ingested
         existing = LegalBlock.model_validate(row.legal or {})
-        state = await run_pipeline(
-            OnboardingState(
-                document_type="legal",
-                files=ingested,
-                existing_legal=existing,
+        self._mark_block_parsing(row, "legal", existing.model_dump())
+
+        async def work(service: "OnboardingService") -> LegalBlock:
+            return await service._run_legal_parse(onboarding_id, ingested, existing)
+
+        return await _run_detached(onboarding_id, "legal", work)
+
+    async def parse_banking(self, onboarding_id: str, files: list[UploadFile]) -> BankingBlock:
+        row = self._require(onboarding_id)
+        ingested = self._store_and_ingest(onboarding_id, files).ingested
+        existing = BankingBlock.model_validate(row.banking or {})
+        existing_legal = LegalBlock.model_validate(row.legal or {})
+        self._mark_block_parsing(row, "banking", existing.model_dump())
+
+        async def work(service: "OnboardingService") -> BankingBlock:
+            return await service._run_banking_parse(
+                onboarding_id, ingested, existing, existing_legal
             )
+
+        return await _run_detached(onboarding_id, "banking", work)
+
+    async def parse_menu(self, onboarding_id: str, files: list[UploadFile]) -> MenuBlock:
+        row = self._require(onboarding_id)
+        existing = MenuBlock.model_validate(row.menu or {})
+        active_file_ids = [source.id for source in existing.source_files]
+        store = self._store_and_ingest(
+            onboarding_id, files, dedupe=True, active_file_ids=active_file_ids
+        )
+        self._mark_block_parsing(row, "menu", existing.model_dump())
+
+        async def work(service: "OnboardingService") -> MenuBlock:
+            return await service._run_menu_parse(
+                onboarding_id, store.ingested, existing, store.skipped_duplicates
+            )
+
+        return await _run_detached(onboarding_id, "menu", work)
+
+    async def _run_legal_parse(
+        self, onboarding_id: str, ingested: list[IngestedFile], existing: LegalBlock
+    ) -> LegalBlock:
+        row = self._require(onboarding_id)
+        state = await run_pipeline(
+            OnboardingState(document_type="legal", files=ingested, existing_legal=existing)
         )
         block = state.get("legal") or LegalBlock(status="couldnt_parse")
         block = _preserve_legal(existing, block)
@@ -102,11 +144,14 @@ class OnboardingService:
         self._session.commit()
         return block
 
-    async def parse_banking(self, onboarding_id: str, files: list[UploadFile]) -> BankingBlock:
+    async def _run_banking_parse(
+        self,
+        onboarding_id: str,
+        ingested: list[IngestedFile],
+        existing: BankingBlock,
+        existing_legal: LegalBlock,
+    ) -> BankingBlock:
         row = self._require(onboarding_id)
-        ingested = self._store_and_ingest(onboarding_id, files).ingested
-        existing = BankingBlock.model_validate(row.banking or {})
-        existing_legal = LegalBlock.model_validate(row.legal or {})
         state = await run_pipeline(
             OnboardingState(
                 document_type="banking",
@@ -123,19 +168,16 @@ class OnboardingService:
         self._session.commit()
         return block
 
-    async def parse_menu(self, onboarding_id: str, files: list[UploadFile]) -> MenuBlock:
+    async def _run_menu_parse(
+        self,
+        onboarding_id: str,
+        ingested: list[IngestedFile],
+        existing: MenuBlock,
+        skipped_duplicates: list[str],
+    ) -> MenuBlock:
         row = self._require(onboarding_id)
-        existing = MenuBlock.model_validate(row.menu or {})
-        active_file_ids = [source.id for source in existing.source_files]
-        store = self._store_and_ingest(
-            onboarding_id, files, dedupe=True, active_file_ids=active_file_ids
-        )
         state = await run_pipeline(
-            OnboardingState(
-                document_type="menu",
-                files=store.ingested,
-                existing_menu=existing,
-            )
+            OnboardingState(document_type="menu", files=ingested, existing_menu=existing)
         )
         block = state.get("menu") or MenuBlock(status="couldnt_parse")
         block = _rewrite_source_urls(onboarding_id, block)
@@ -144,8 +186,33 @@ class OnboardingService:
         self._session.add(row)
         self._session.commit()
         # skipped_duplicates is a parse-time-only signal; it is not persisted on the row.
-        block.skipped_duplicates = store.skipped_duplicates or None
+        block.skipped_duplicates = skipped_duplicates or None
         return block
+
+    def _mark_block_parsing(self, row: OnboardingRow, block_name: str, block_dump: dict) -> None:
+        # An unexpected error in the detached task reconciles the block to couldnt_parse
+        # (see _run_detached). Only a process restart mid-parse can leave a block stuck in
+        # "parsing"; the client resolves that via a poll timeout, and a durable worker queue
+        # would reconcile it server-side.
+        block_dump = dict(block_dump)
+        block_dump["status"] = "parsing"
+        setattr(row, block_name, block_dump)
+        self._session.add(row)
+        self._session.commit()
+
+    def _mark_block_failed(self, onboarding_id: str, block_name: str) -> None:
+        # Defensive reconciliation: if the detached parse raised before writing a result
+        # block, flip it out of "parsing" so the client never polls a permanently stuck block.
+        self._session.rollback()
+        try:
+            row = self._require(onboarding_id)
+        except OnboardingNotFoundError:
+            return
+        block_dump = dict(getattr(row, block_name) or {})
+        block_dump["status"] = "couldnt_parse"
+        setattr(row, block_name, block_dump)
+        self._session.add(row)
+        self._session.commit()
 
     def save_legal(self, onboarding_id: str, block: LegalBlock) -> LegalBlock:
         row = self._require(onboarding_id)
@@ -187,10 +254,10 @@ class OnboardingService:
             confirmed["menu"] = True
         row.confirmed = confirmed
         row.step = min(max(row.step, step + 1), 4)
-        # The lifecycle events step_confirmed / onboarding_completed are owned by the
-        # client: it carries duration_ms (needed for the friction median and TTV).
-        # The server emits only parse_completed, registry_verification_result and
-        # validation_result.
+        # The lifecycle events step_viewed / step_confirmed / onboarding_completed are owned
+        # by the client; the friction median and TTV are derived server-side from their
+        # created_at timestamps. The server emits only parse_completed,
+        # registry_verification_result and validation_result.
         self._session.add(row)
         self._session.commit()
         return self._to_schema(row)
@@ -377,6 +444,31 @@ class OnboardingService:
         )
 
 
+async def _run_detached(
+    onboarding_id: str,
+    block_name: str,
+    work: Callable[["OnboardingService"], Awaitable[_BlockT]],
+) -> _BlockT:
+    # The AI work runs in a DETACHED task with its OWN db session, bound to the same
+    # engine/sessionmaker as the app and tests (SessionLocal). Detaching via create_task
+    # means a client disconnect/refresh cancels only the awaiting request, not the task:
+    # it runs to completion and writes the result block, so a reloaded page can poll the
+    # row and still see parsing -> ready/couldnt_parse. Any unexpected error reconciles the
+    # block to couldnt_parse so it never stays stuck in "parsing".
+    async def runner() -> _BlockT:
+        session = SessionLocal()
+        service = OnboardingService(session)
+        try:
+            return await work(service)
+        except Exception:
+            service._mark_block_failed(onboarding_id, block_name)
+            raise
+        finally:
+            session.close()
+
+    return await asyncio.shield(asyncio.create_task(runner()))
+
+
 def _preserve_legal(existing: LegalBlock, parsed: LegalBlock) -> LegalBlock:
     if existing.status == "empty":
         return parsed
@@ -401,9 +493,7 @@ def _rewrite_source_urls(onboarding_id: str, block: MenuBlock) -> MenuBlock:
     rewritten: list[SourceFile] = []
     for source in block.source_files:
         rewritten.append(
-            source.model_copy(
-                update={"url": f"/api/onboarding/{onboarding_id}/files/{source.id}"}
-            )
+            source.model_copy(update={"url": f"/api/onboarding/{onboarding_id}/files/{source.id}"})
         )
     block.source_files = rewritten
     return block

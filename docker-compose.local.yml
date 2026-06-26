@@ -25,7 +25,7 @@ services:
     depends_on:
       - postgres
     environment:
-      ENV: local
+      ENVIRONMENT: local
       DATABASE_URL: postgresql+psycopg://onboarding:onboarding@postgres:5432/onboarding
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       MODEL_LEGAL: claude-sonnet-4-6

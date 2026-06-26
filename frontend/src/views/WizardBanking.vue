@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import type { BankingFieldName, BlockStatus, Field } from "@/types/contract";
@@ -24,6 +24,10 @@ const uploader = ref<InstanceType<typeof DocumentUploader> | null>(null);
 onMounted(async () => {
   await onboarding.ensureSession();
   onboarding.track("step_viewed", { step: 2 });
+});
+
+onUnmounted(() => {
+  onboarding.store.stopParsingPoll();
 });
 
 const banking = computed(() => onboarding.banking.value);
@@ -72,7 +76,7 @@ const holderMismatch = computed(() => banking.value?.cross_doc_holder_match === 
 
 const canConfirm = computed(() => {
   const fields = banking.value?.fields;
-  if (fields == null) {
+  if (fields == null || banking.value?.status === "parsing") {
     return false;
   }
   const ibanOk = fields.iban.value == null || fields.iban.value.length === 0 || ibanResult.value.valid;

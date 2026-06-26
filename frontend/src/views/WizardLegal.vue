@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import type { BlockStatus, Field, LegalFieldName } from "@/types/contract";
@@ -32,6 +32,10 @@ const uploader = ref<InstanceType<typeof DocumentUploader> | null>(null);
 onMounted(async () => {
   await onboarding.ensureSession();
   onboarding.track("step_viewed", { step: 1 });
+});
+
+onUnmounted(() => {
+  onboarding.store.stopParsingPoll();
 });
 
 const legal = computed(() => onboarding.legal.value);
@@ -76,7 +80,7 @@ const displayStatus = computed<BlockStatus>(() => {
 
 const canConfirm = computed(() => {
   const fields = legal.value?.fields;
-  if (fields == null) {
+  if (fields == null || legal.value?.status === "parsing") {
     return false;
   }
   const sirenOk = fields.siren.value == null || fields.siren.value.length === 0 || sirenValid(fields.siren.value);

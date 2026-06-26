@@ -24,21 +24,25 @@ in the planning notes; the durable decisions are distilled into [docs/DECISIONS.
 - [x] Frontend (`frontend/`): Vue 3 + Vite + TS (strict) + Tailwind/Flowbite. 6 views (Start consent,
       WizardLegal, WizardBanking, WizardMenu builder, RestaurantPage, Admin) + 28 components. Pinia
       store, `useOnboarding`/`useAnalytics`, FR/EN i18n, contract-typed API client. Builds clean
-      (`vue-tsc` strict), lints clean, 26 Vitest tests pass. State rehydrates from the server by
+      (`vue-tsc` strict), lints clean, 78 Vitest tests pass. State rehydrates from the server by
       `onboarding_id` in localStorage; renders crash-safe from an all-missing state.
 - [x] Backend core (`backend/`): FastAPI + LangGraph + parsers/validators/registry/merge/analytics +
-      `OnboardingService` + file storage + admin metrics. `converse` node stubbed for chat. **43 tests
-      pass, 3 live skipped, ruff clean, routes match the contract** (verified by the tech-lead, no
-      contract deviations).
+      `OnboardingService` + file storage + admin metrics. `converse` node stubbed for chat. **72 tests
+      pass, 3 live skipped, ruff clean, routes match the contract** (no contract deviations).
 - [x] Integration (build level): backend tests green, frontend `vite build` green, both compose files
       validate, CI wired (`.github/workflows/ci.yml`) + deploy (`deploy.yml`, SSH + docker like Aivus).
-- [x] Independent QA audit (3 fresh agents) + fix round, re-verified by the tech-lead. Core flow WORKS:
-      multi-onboarding e2e (3 distinct restaurants), live uvicorn server degrades to `couldnt_parse`
-      with no API key (no 500s), validators correct on the real identifiers, crash-safe from empty. The
-      bugs the audit found — all in the admin-metrics layer (auto-fill acceptance was always 0; friction
+- [x] Independent QA + two fix rounds, re-verified green. Core flow WORKS: multi-onboarding e2e (3
+      distinct restaurants), live uvicorn server degrades to `couldnt_parse` with no API key (no 500s),
+      validators correct on the real identifiers, crash-safe from empty (including from an all-NULL DB
+      row). Fixed along the way: the admin-metrics layer (auto-fill acceptance was always 0; friction
       drop-off rendered as a raw count; client/server analytics double-emit; PUT legal/banking didn't
-      re-validate server-side) — are fixed and tested. **Final: backend 54 passed / 3 live skipped,
-      frontend 39 passed, both lint clean, both `pytest`/`build` green, both Docker images build.**
+      re-validate server-side); the 15-item UX polish round; AI calls made fully async so the app never
+      blocks during a parse; parse made to survive a page refresh (the block persists `parsing`, the work
+      runs in a detached task with its own session, the client polls until it resolves); a detached parse
+      that errors now reconciles to `couldnt_parse` instead of sticking in `parsing`; resumed sessions
+      rehydrate the parsed snapshot so auto-fill acceptance is not under-counted. **Final: backend 72
+      passed / 3 live skipped, frontend 78 passed, both lint clean, both `pytest`/`build` green, both
+      Docker images build.**
 - [x] Live end-to-end VERIFIED on the real documents via `pytest -m live` (legal + banking + menu, all
       pass). Legal/banking pull correct values (SIREN 913472056, SAS, Morzine, MORAND Céline; IBAN
       FR76…0174, BIC AGRIFRPP878). All 7 real menu images (`menu_1..7`) parse to `ready` with correct
