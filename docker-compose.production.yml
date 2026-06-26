@@ -56,7 +56,7 @@ services:
     restart: unless-stopped
 
   traefik:
-    image: traefik:v3.1
+    image: traefik:v3.6
     depends_on:
       - app
       - web
