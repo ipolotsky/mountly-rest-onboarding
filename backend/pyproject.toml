@@ -1,0 +1,50 @@
+[project]
+name = "onboarding-backend"
+version = "0.1.0"
+description = "Document-driven restaurant onboarding AI core (FastAPI + LangGraph + Claude)"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "gunicorn>=23",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.5",
+    "sqlalchemy>=2.0",
+    "psycopg[binary]>=3.2",
+    "anthropic>=0.40",
+    "langgraph>=0.2",
+    "httpx>=0.27",
+    "python-multipart>=0.0.12",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.7",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "live: hits the real Claude API on the sample documents (needs ANTHROPIC_API_KEY)",
+]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]

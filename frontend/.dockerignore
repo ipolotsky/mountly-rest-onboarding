@@ -1,0 +1,11 @@
+node_modules
+dist
+.vite
+.git
+.gitignore
+*.local
+.DS_Store
+coverage
+tests
+*.log
+npm-debug.log*

@@ -1,0 +1,52 @@
+{
+  "groups": [
+    {
+      "name": "PIZZAS",
+      "items": [
+        {"name": "Margarita", "description": null, "prices": [{"label": null, "amount": "10.00€"}], "confidence": 0.95},
+        {"name": "Funghi", "description": null, "prices": [{"label": null, "amount": "13.00€"}], "confidence": 0.95},
+        {"name": "Regina", "description": null, "prices": [{"label": null, "amount": "15.00€"}], "confidence": 0.95},
+        {"name": "4 saisons", "description": null, "prices": [{"label": null, "amount": "16.00€"}], "confidence": 0.95},
+        {"name": "Végétarienne", "description": null, "prices": [{"label": null, "amount": "14.00€"}], "confidence": 0.95},
+        {"name": "Cèpes", "description": null, "prices": [{"label": null, "amount": "17.50€"}], "confidence": 0.95},
+        {"name": "Bufalina", "description": null, "prices": [{"label": null, "amount": "15.00€"}], "confidence": 0.95},
+        {"name": "4 fromages", "description": null, "prices": [{"label": null, "amount": "15.50€"}], "confidence": 0.95},
+        {"name": "Chèvre", "description": null, "prices": [{"label": null, "amount": "14.50€"}], "confidence": 0.95},
+        {"name": "Chorizo", "description": null, "prices": [{"label": null, "amount": "14.50€"}], "confidence": 0.95},
+        {"name": "Kebab", "description": null, "prices": [{"label": null, "amount": "15.00€"}], "confidence": 0.95},
+        {"name": "Napolitaine", "description": null, "prices": [{"label": null, "amount": "15.50€"}], "confidence": 0.95},
+        {"name": "Tono & Cipolla", "description": null, "prices": [{"label": null, "amount": "15.50€"}], "confidence": 0.95}
+      ]
+    },
+    {
+      "name": "KEBAB",
+      "items": [
+        {"name": "Kebab Galette", "description": null, "prices": [{"label": null, "amount": "8,50"}], "confidence": 0.9},
+        {"name": "Kebab Assiette", "description": null, "prices": [{"label": null, "amount": "12,00"}], "confidence": 0.9}
+      ]
+    },
+    {
+      "name": "TACOS",
+      "items": [
+        {"name": "Tacos 1 viande", "description": null, "prices": [{"label": "Menu", "amount": "9,00"}, {"label": "Seul", "amount": "7,00"}], "confidence": 0.88},
+        {"name": "Tacos 2 viandes", "description": null, "prices": [{"label": null, "amount": "10,50"}], "confidence": 0.88}
+      ]
+    },
+    {
+      "name": "ASSIETTES",
+      "items": [
+        {"name": "Assiette Kebab", "description": null, "prices": [{"label": null, "amount": "13,00"}], "confidence": 0.86},
+        {"name": "Assiette Mixte", "description": null, "prices": [{"label": null, "amount": "15,00"}], "confidence": 0.86}
+      ]
+    },
+    {
+      "name": "SAUCES",
+      "items": [
+        {"name": "Blanche", "description": null, "prices": [], "confidence": 0.8},
+        {"name": "Algérienne", "description": null, "prices": [], "confidence": 0.8},
+        {"name": "Samouraï", "description": null, "prices": [], "confidence": 0.8},
+        {"name": "Harissa", "description": null, "prices": [], "confidence": 0.8}
+      ]
+    }
+  ]
+}

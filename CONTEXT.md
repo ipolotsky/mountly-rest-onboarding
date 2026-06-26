@@ -32,14 +32,20 @@ in the planning notes; the durable decisions are distilled into [docs/DECISIONS.
       contract deviations).
 - [x] Integration (build level): backend tests green, frontend `vite build` green, both compose files
       validate, CI wired (`.github/workflows/ci.yml`) + deploy (`deploy.yml`, SSH + docker like Aivus).
-- [~] Independent QA audit (3 agents). Core flow WORKS: multi-onboarding e2e (3 distinct restaurants),
-      live uvicorn server degrades to `couldnt_parse` with no API key (no 500s), validators correct on
-      the real identifiers, crash-safe from empty. Found and **fixing** real bugs in the admin metrics
-      layer (auto-fill acceptance was always 0 due to a `field_resolved` doc_type/resolution mismatch;
-      friction drop-off rendered as a raw count; client/server analytics double-emit; PUT legal/banking
-      didn't re-validate server-side). Contract updated; backend + frontend fix round in progress.
-- [ ] Live end-to-end: needs `ANTHROPIC_API_KEY` + the real sample files (see Next). Run `make up`,
-      walk the wizard against the real documents, then `make test-live` + README screenshots.
+- [x] Independent QA audit (3 fresh agents) + fix round, re-verified by the tech-lead. Core flow WORKS:
+      multi-onboarding e2e (3 distinct restaurants), live uvicorn server degrades to `couldnt_parse`
+      with no API key (no 500s), validators correct on the real identifiers, crash-safe from empty. The
+      bugs the audit found — all in the admin-metrics layer (auto-fill acceptance was always 0; friction
+      drop-off rendered as a raw count; client/server analytics double-emit; PUT legal/banking didn't
+      re-validate server-side) — are fixed and tested. **Final: backend 54 passed / 3 live skipped,
+      frontend 39 passed, both lint clean, both `pytest`/`build` green, both Docker images build.**
+- [x] Live end-to-end VERIFIED on the real documents via `pytest -m live` (legal + banking + menu, all
+      pass). Legal/banking pull correct values (SIREN 913472056, SAS, Morzine, MORAND Céline; IBAN
+      FR76…0174, BIC AGRIFRPP878). All 7 real menu images (`menu_1..7`) parse to `ready` with correct
+      sections, items and original-string prices — including the hard ones (handwritten chalkboard, glare
+      wine list, dark phone screenshots); ~€0.33 total on Opus 4.8 (~€0.047/menu). Two fixes landed from
+      the first live run (strict-grammar timeout → JSON-prompt extraction; IBAN/BIC/SIREN normalization) —
+      see DECISIONS.md. Remaining: `make up` to click through the full wizard UI; deploy; README screenshots.
 
 > Update the checkboxes and the "Next" list below as you go.
 

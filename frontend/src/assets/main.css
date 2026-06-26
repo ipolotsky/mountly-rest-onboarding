@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-summit-100 bg-white shadow-sm;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition focus:outline-none focus:ring-4 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply btn bg-summit-600 text-white hover:bg-summit-700 focus:ring-summit-200;
+  }
+
+  .btn-ghost {
+    @apply btn bg-transparent text-summit-700 hover:bg-summit-50 focus:ring-summit-100;
+  }
+
+  .btn-soft {
+    @apply btn bg-summit-50 text-summit-700 hover:bg-summit-100 focus:ring-summit-100;
+  }
+
+  .input-field {
+    @apply w-full rounded-xl border border-summit-200 bg-white px-4 py-2.5 text-sm text-slate-900 transition placeholder:text-slate-400 focus:border-summit-400 focus:ring-2 focus:ring-summit-200;
+  }
+
+  .field-flagged {
+    @apply border-amber-400 bg-amber-50/60 focus:border-amber-500 focus:ring-amber-200;
+  }
+
+  .field-invalid {
+    @apply border-rose-400 bg-rose-50/60 focus:border-rose-500 focus:ring-rose-200;
+  }
+}
+
+@layer utilities {
+  .ridge {
+    background-image: radial-gradient(120% 80% at 50% 0%, rgba(50, 116, 168, 0.1), transparent 60%);
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}

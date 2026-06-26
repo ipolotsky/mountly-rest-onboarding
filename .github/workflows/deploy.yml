@@ -1,0 +1,29 @@
+name: Deploy
+
+# Docker deployment over SSH, mirroring the Aivus pattern: the server holds the repo and the real
+# env files (.env + .envs/.production/{.app,.postgres}); we just pull and rebuild the stack.
+#
+# Required repository secrets:
+#   SSH_HOST, SSH_USER, SSH_KEY (private key), DEPLOY_PATH (repo path on the server)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -e
+            cd ${{ secrets.DEPLOY_PATH }}
+            git pull --ff-only
+            docker compose -f docker-compose.production.yml up -d --build
+            docker image prune -f

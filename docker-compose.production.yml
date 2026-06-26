@@ -1,0 +1,79 @@
+# Production. Mirrors the Aivus containerization pattern: traefik (TLS) + web + app + postgres.
+# Real secrets live ON THE SERVER under ./.envs/.production/ (templates in .envs.production.example/).
+# Compose-level vars (DOMAIN, ACME_EMAIL) come from a root .env on the server (see .env.example).
+#
+#   traefik  ── /api ──▶ app (FastAPI :8000)
+#            └── /    ──▶ web (nginx static SPA :80)
+
+volumes:
+  production_postgres_data: {}
+  production_postgres_data_backups: {}
+  production_traefik: {}
+
+services:
+  app:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: prod
+    image: onboarding_app
+    depends_on:
+      - postgres
+    env_file:
+      - ./.envs/.production/.app
+      - ./.envs/.production/.postgres
+    command: /start
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=Host(`${DOMAIN}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.api.entrypoints=websecure"
+      - "traefik.http.routers.api.tls.certresolver=le"
+      - "traefik.http.services.api.loadbalancer.server.port=8000"
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: onboarding_web
+    depends_on:
+      - app
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.web.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.web.entrypoints=websecure"
+      - "traefik.http.routers.web.tls.certresolver=le"
+      - "traefik.http.services.web.loadbalancer.server.port=80"
+
+  postgres:
+    image: postgres:16
+    volumes:
+      - production_postgres_data:/var/lib/postgresql/data
+      - production_postgres_data_backups:/backups
+    env_file:
+      - ./.envs/.production/.postgres
+    restart: unless-stopped
+
+  traefik:
+    image: traefik:v3.1
+    depends_on:
+      - app
+      - web
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--certificatesresolvers.le.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.le.acme.storage=/etc/traefik/acme/acme.json"
+      - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
+    volumes:
+      - production_traefik:/etc/traefik/acme
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "0.0.0.0:80:80"
+      - "0.0.0.0:443:443"
+    restart: unless-stopped

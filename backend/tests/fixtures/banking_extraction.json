@@ -1,0 +1,10 @@
+{
+  "account_holder": "SAVEURS DU SOLEIL LEVANT",
+  "account_holder_confidence": 0.97,
+  "bank_name": "Crédit Agricole des Savoie",
+  "bank_name_confidence": 0.94,
+  "iban": "FR7618306000457021845630174",
+  "iban_confidence": 0.99,
+  "bic": "AGRIFRPP878",
+  "bic_confidence": 0.96
+}

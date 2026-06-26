@@ -1,0 +1,337 @@
+from collections import defaultdict
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.config import settings
+from app.models import Event, Onboarding
+from app.schemas import (
+    AdminCost,
+    AdminMetrics,
+    AdminOnboardingRow,
+    AdminQuality,
+    AnalyticsEvent,
+    FrictionStage,
+    FunnelStage,
+)
+
+SCHEMA_VERSION = 1
+
+
+def track(
+    session: Session,
+    kind: str,
+    onboarding_id: str | None = None,
+    props: dict | None = None,
+    device: str | None = None,
+    locale: str | None = None,
+    session_id: str | None = None,
+    note: str | None = None,
+) -> None:
+    event = Event(
+        kind=kind,
+        onboarding_id=onboarding_id,
+        session_id=session_id,
+        device=device,
+        locale=locale,
+        props=props or {},
+        note=note,
+    )
+    session.add(event)
+    session.flush()
+    _forward_to_amplitude(kind, onboarding_id, props or {})
+
+
+def track_client_event(session: Session, event: AnalyticsEvent) -> None:
+    track(
+        session=session,
+        kind=event.name,
+        onboarding_id=event.onboarding_id,
+        props=event.props or {},
+        device=event.device,
+        locale=event.locale,
+        session_id=event.session_id,
+    )
+
+
+def _forward_to_amplitude(kind: str, onboarding_id: str | None, props: dict) -> None:
+    if not settings.amplitude_api_key:
+        return
+    # Amplitude integration is scaffolded but intentionally not provisioned for the take-home.
+    # With a key set this is where the HTTP forward to the Amplitude HTTP v2 API would happen.
+    return
+
+
+def _is_publishable(row: Onboarding) -> bool:
+    if row.step < 4:
+        return False
+    confirmed = row.confirmed or {}
+    if not (confirmed.get("legal") and confirmed.get("banking") and confirmed.get("menu")):
+        return False
+    legal = row.legal or {}
+    banking = row.banking or {}
+    legal_fields = legal.get("fields", {})
+    banking_fields = banking.get("fields", {})
+    legal_ok = bool((legal_fields.get("siren") or {}).get("valid"))
+    banking_ok = bool((banking_fields.get("iban") or {}).get("valid"))
+    menu = row.menu or {}
+    groups = menu.get("groups", [])
+    menu_ok = any(group.get("items") for group in groups)
+    return legal_ok and banking_ok and menu_ok
+
+
+def _row_status(row: Onboarding) -> str:
+    if _is_publishable(row):
+        return "publishable"
+    if row.step >= 4:
+        return "completed"
+    return "in_progress"
+
+
+def admin_onboardings(session: Session) -> list[AdminOnboardingRow]:
+    rows = session.execute(select(Onboarding)).scalars().all()
+    cost_by_onboarding = _cost_by_onboarding(session)
+    csat_by_onboarding = _csat_by_onboarding(session)
+
+    output: list[AdminOnboardingRow] = []
+    for row in rows:
+        legal = row.legal or {}
+        registry = legal.get("registry")
+        registry_status = registry.get("status") if isinstance(registry, dict) else None
+        output.append(
+            AdminOnboardingRow(
+                id=row.id,
+                status=_row_status(row),
+                device=row.device,
+                step=row.step,
+                created_at=row.created_at.isoformat(),
+                ttv_ms=_time_to_value_ms(session, row.id),
+                ai_cost_eur=round(cost_by_onboarding.get(row.id, 0.0), 6),
+                registry_status=registry_status,
+                csat=csat_by_onboarding.get(row.id),
+            )
+        )
+    return output
+
+
+def _cost_by_onboarding(session: Session) -> dict[str, float]:
+    events = (
+        session.execute(select(Event).where(Event.kind == "parse_completed")).scalars().all()
+    )
+    totals: dict[str, float] = defaultdict(float)
+    for event in events:
+        if event.onboarding_id is None:
+            continue
+        totals[event.onboarding_id] += float(event.props.get("cost_eur", 0.0))
+    return totals
+
+
+def _csat_by_onboarding(session: Session) -> dict[str, int]:
+    events = (
+        session.execute(select(Event).where(Event.kind == "feedback_submitted")).scalars().all()
+    )
+    result: dict[str, int] = {}
+    for event in events:
+        if event.onboarding_id is None:
+            continue
+        csat = event.props.get("csat")
+        if isinstance(csat, int):
+            result[event.onboarding_id] = csat
+    return result
+
+
+def _time_to_value_ms(session: Session, onboarding_id: str) -> int | None:
+    started = session.execute(
+        select(Event)
+        .where(Event.kind == "onboarding_started", Event.onboarding_id == onboarding_id)
+        .order_by(Event.created_at.asc())
+    ).scalar_one_or_none()
+    completed = session.execute(
+        select(Event)
+        .where(Event.kind == "onboarding_completed", Event.onboarding_id == onboarding_id)
+        .order_by(Event.created_at.asc())
+    ).scalar_one_or_none()
+    if started is None or completed is None:
+        return None
+    return int((completed.created_at - started.created_at).total_seconds() * 1000)
+
+
+def admin_metrics(session: Session) -> AdminMetrics:
+    rows = session.execute(select(Onboarding)).scalars().all()
+    return AdminMetrics(
+        funnel=_funnel(rows),
+        ai_cost=_ai_cost(session, rows),
+        quality=_quality(session, rows),
+        friction=_friction(session, rows),
+    )
+
+
+def _funnel(rows: list[Onboarding]) -> list[FunnelStage]:
+    stages = ["started", "legal_done", "banking_done", "menu_done", "publishable"]
+    counts: dict[str, dict[str, int]] = {
+        stage: {"mobile": 0, "desktop": 0} for stage in stages
+    }
+    for row in rows:
+        device = "mobile" if row.device == "mobile" else "desktop"
+        counts["started"][device] += 1
+        if row.step >= 2:
+            counts["legal_done"][device] += 1
+        if row.step >= 3:
+            counts["banking_done"][device] += 1
+        if row.step >= 4:
+            counts["menu_done"][device] += 1
+        if _is_publishable(row):
+            counts["publishable"][device] += 1
+    return [
+        FunnelStage(step=stage, mobile=counts[stage]["mobile"], desktop=counts[stage]["desktop"])
+        for stage in stages
+    ]
+
+
+def _ai_cost(session: Session, rows: list[Onboarding]) -> AdminCost:
+    events = (
+        session.execute(select(Event).where(Event.kind == "parse_completed")).scalars().all()
+    )
+    by_model: dict[str, float] = defaultdict(float)
+    by_step: dict[str, float] = defaultdict(float)
+    total_cost = 0.0
+    for event in events:
+        cost = float(event.props.get("cost_eur", 0.0))
+        total_cost += cost
+        by_model[str(event.props.get("model", "unknown"))] += cost
+        by_step[str(event.props.get("step", "unknown"))] += cost
+
+    publishable_count = sum(1 for row in rows if _is_publishable(row))
+    per_publishable = round(total_cost / publishable_count, 6) if publishable_count else 0.0
+    return AdminCost(
+        per_publishable_eur=per_publishable,
+        by_model={key: round(value, 6) for key, value in by_model.items()},
+        by_step={key: round(value, 6) for key, value in by_step.items()},
+    )
+
+
+def _quality(session: Session, rows: list[Onboarding]) -> AdminQuality:
+    field_events = (
+        session.execute(select(Event).where(Event.kind == "field_resolved")).scalars().all()
+    )
+    accepted: dict[str, int] = defaultdict(int)
+    total: dict[str, int] = defaultdict(int)
+    for event in field_events:
+        doc_type = event.props.get("doc_type")
+        if doc_type not in ("legal", "banking", "menu"):
+            continue
+        if not event.props.get("parsed_value_present"):
+            continue
+        total[doc_type] += 1
+        if event.props.get("resolution") == "accepted_as_is":
+            accepted[doc_type] += 1
+
+    auto_fill = {
+        doc_type: round(accepted[doc_type] / total[doc_type], 4) if total[doc_type] else 0.0
+        for doc_type in ("legal", "banking", "menu")
+    }
+
+    registry_events = (
+        session.execute(
+            select(Event).where(Event.kind == "registry_verification_result")
+        )
+        .scalars()
+        .all()
+    )
+    registry_success = sum(
+        1 for event in registry_events if event.props.get("lookup_status") == "match"
+    )
+    registry_rate = (
+        round(registry_success / len(registry_events), 4) if registry_events else 0.0
+    )
+
+    menu_added, menu_total = _menu_hand_added(rows)
+    menu_hand_added_share = round(menu_added / menu_total, 4) if menu_total else 0.0
+
+    low_conf, field_total = _low_confidence_rate(rows)
+    low_confidence_rate = round(low_conf / field_total, 4) if field_total else 0.0
+
+    return AdminQuality(
+        auto_fill_acceptance=auto_fill,
+        menu_hand_added_share=menu_hand_added_share,
+        registry_success_rate=registry_rate,
+        low_confidence_rate=low_confidence_rate,
+    )
+
+
+def _menu_hand_added(rows: list[Onboarding]) -> tuple[int, int]:
+    added = 0
+    total = 0
+    for row in rows:
+        menu = row.menu or {}
+        for group in menu.get("groups", []):
+            for item in group.get("items", []):
+                total += 1
+                if item.get("provenance") in ("user_added",):
+                    added += 1
+    return added, total
+
+
+def _low_confidence_rate(rows: list[Onboarding]) -> tuple[int, int]:
+    low = 0
+    total = 0
+    for row in rows:
+        for block_name in ("legal", "banking"):
+            block = getattr(row, block_name) or {}
+            for field in (block.get("fields") or {}).values():
+                if not isinstance(field, dict):
+                    continue
+                if field.get("status") == "missing":
+                    continue
+                total += 1
+                if field.get("status") == "low_confidence":
+                    low += 1
+        menu = row.menu or {}
+        for group in menu.get("groups", []):
+            for item in group.get("items", []):
+                total += 1
+                if (item.get("name") or {}).get("status") == "low_confidence":
+                    low += 1
+    return low, total
+
+
+def _friction(session: Session, rows: list[Onboarding]) -> list[FrictionStage]:
+    stage_steps = [("step1", 1), ("step2", 2), ("step3", 3)]
+    error_events = (
+        session.execute(select(Event).where(Event.kind == "error_shown")).scalars().all()
+    )
+    confirm_events = (
+        session.execute(select(Event).where(Event.kind == "step_confirmed")).scalars().all()
+    )
+
+    reason_by_step: dict[int, str | None] = {}
+    for step in (1, 2, 3):
+        reasons: dict[str, int] = defaultdict(int)
+        for event in error_events:
+            if event.props.get("step") == step:
+                reasons[str(event.props.get("error_type", "unknown"))] += 1
+        reason_by_step[step] = max(reasons, key=reasons.get) if reasons else None
+
+    duration_by_step: dict[int, list[float]] = defaultdict(list)
+    for event in confirm_events:
+        step = event.props.get("step")
+        duration = event.props.get("duration_ms")
+        if isinstance(step, int) and isinstance(duration, (int, float)):
+            duration_by_step[step].append(float(duration))
+
+    output: list[FrictionStage] = []
+    for label, step in stage_steps:
+        reached = sum(1 for row in rows if row.step >= step)
+        advanced = sum(1 for row in rows if row.step >= step + 1)
+        drop_off = (reached - advanced) / reached if reached else 0.0
+        durations = sorted(duration_by_step.get(step, []))
+        median = durations[len(durations) // 2] if durations else None
+        output.append(
+            FrictionStage(
+                step=label,
+                drop_off=round(max(drop_off, 0.0), 4),
+                top_reason=reason_by_step.get(step),
+                median_ms=median,
+            )
+        )
+    return output

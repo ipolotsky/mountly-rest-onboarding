@@ -1,0 +1,54 @@
+# Local development. `make up` runs this.
+# Postgres + FastAPI (hot reload, :8000) + Vue dev server (Vite, :5173).
+# No secrets here; ANTHROPIC_API_KEY is passed through from your shell / .env.
+
+volumes:
+  local_postgres_data: {}
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: onboarding
+      POSTGRES_USER: onboarding
+      POSTGRES_PASSWORD: onboarding
+    volumes:
+      - local_postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  app:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: dev
+    depends_on:
+      - postgres
+    environment:
+      ENV: local
+      DATABASE_URL: postgresql+psycopg://onboarding:onboarding@postgres:5432/onboarding
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      MODEL_LEGAL: claude-sonnet-4-6
+      MODEL_BANKING: claude-sonnet-4-6
+      MODEL_MENU: claude-opus-4-8
+      REGISTRY_BASE_URL: https://recherche-entreprises.api.gouv.fr
+      REGISTRY_TIMEOUT_SECONDS: "3"
+      CORS_ORIGINS: http://localhost:5173
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+
+  web:
+    image: node:20
+    working_dir: /app
+    depends_on:
+      - app
+    environment:
+      VITE_API_BASE: http://localhost:8000
+    volumes:
+      - ./frontend:/app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+    ports:
+      - "5173:5173"

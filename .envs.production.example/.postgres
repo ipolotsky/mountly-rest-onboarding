@@ -1,0 +1,10 @@
+# PostgreSQL production env. Copy to .envs/.production/.postgres on the server.
+
+POSTGRES_HOST=postgres
+POSTGRES_PORT=5432
+POSTGRES_DB=onboarding
+POSTGRES_USER=onboarding_user
+POSTGRES_PASSWORD=changeme-generate-with-openssl-rand-base64-24
+
+# Must match the values above. Read by the app.
+DATABASE_URL=postgresql+psycopg://onboarding_user:changeme-generate-with-openssl-rand-base64-24@postgres:5432/onboarding
