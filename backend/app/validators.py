@@ -42,7 +42,7 @@ def validate_siret(value: str | None) -> bool:
 def validate_iban(value: str | None) -> bool:
     if value is None:
         return False
-    cleaned = re.sub(r"\s", "", value).upper()
+    cleaned = re.sub(r"[^A-Za-z0-9]", "", value).upper()
     if len(cleaned) < 4 or not cleaned[:2].isalpha() or not cleaned[2:4].isdigit():
         return False
     expected_length = _IBAN_COUNTRY_LENGTHS.get(cleaned[:2])
@@ -60,7 +60,7 @@ def validate_iban(value: str | None) -> bool:
 def validate_bic(value: str | None) -> bool:
     if value is None:
         return False
-    cleaned = re.sub(r"\s", "", value).upper()
+    cleaned = re.sub(r"[^A-Za-z0-9]", "", value).upper()
     return bool(_BIC_PATTERN.match(cleaned))
 
 

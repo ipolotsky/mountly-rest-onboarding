@@ -54,7 +54,9 @@ export function siretValid(raw: string | null): boolean {
 }
 
 export function normalizeIban(raw: string): string {
-  return raw.replace(/\s+/g, "").toUpperCase();
+  // Keep only [A-Z0-9]: drops spaces, dots, dashes and invisible characters (e.g. a
+  // zero-width space) that would otherwise break the mod-97 check on an otherwise valid IBAN.
+  return raw.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
 }
 
 // IBAN mod-97 (ISO 13616). Returns which characters look wrong so the field can highlight them.
@@ -102,7 +104,7 @@ export function bicValid(raw: string | null): boolean {
   if (raw == null) {
     return false;
   }
-  const normalized = raw.replace(/\s+/g, "").toUpperCase();
+  const normalized = raw.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
   if (normalized.length === 0) {
     return false;
   }

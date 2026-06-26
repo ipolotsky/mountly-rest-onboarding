@@ -57,6 +57,17 @@ def test_iban_rejects_tampered():
     assert validate_iban("FR7618306000457021845630175") is False
 
 
+def test_iban_ignores_zero_width_and_stray_characters():
+    # A correctly recognized IBAN must validate even when a zero-width space or other stray
+    # separators slip in (a model can emit them, and \\s does not strip a zero-width space).
+    assert validate_iban("FR76183060004570218456301​74") is True
+    assert validate_iban("FR76-1830-6000-4570-2184-5630-174") is True
+
+
+def test_bic_ignores_zero_width_and_stray_characters():
+    assert validate_bic("AGRIFRPP​878") is True
+
+
 def test_iban_none_is_invalid():
     assert validate_iban(None) is False
 

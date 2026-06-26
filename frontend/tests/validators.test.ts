@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { bicValid, ibanValidation, sirenValid, siretValid } from "@/domain/validators";
 
+const ZERO_WIDTH_SPACE = "​";
+
 describe("SIREN validation (Luhn)", () => {
   it("accepts a valid SIREN", () => {
     expect(sirenValid("552 100 554")).toBe(true);
@@ -40,10 +42,9 @@ describe("IBAN validation (mod-97)", () => {
     expect(ibanValidation("FR14 2004 1010 0505 0001 3M02 607").valid).toBe(false);
   });
 
-  it("flags suspect characters", () => {
-    const result = ibanValidation("FR14-2004");
-    expect(result.valid).toBe(false);
-    expect(result.suspectIndexes.length).toBeGreaterThan(0);
+  it("ignores stray separators and invisible characters", () => {
+    expect(ibanValidation("FR14-2004-1010-0505-0001-3M02-606").valid).toBe(true);
+    expect(ibanValidation(`FR1420041010050500013M02${ZERO_WIDTH_SPACE}606`).valid).toBe(true);
   });
 });
 
@@ -58,5 +59,10 @@ describe("BIC validation", () => {
 
   it("rejects a too-short BIC", () => {
     expect(bicValid("BNPA")).toBe(false);
+  });
+
+  it("ignores stray separators and invisible characters", () => {
+    expect(bicValid("BNPA-FR-PP")).toBe(true);
+    expect(bicValid(`BNPAFRPP${ZERO_WIDTH_SPACE}XXX`)).toBe(true);
   });
 });

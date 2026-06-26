@@ -1,3 +1,4 @@
+import re
 import uuid
 
 from pydantic import BaseModel, Field
@@ -111,10 +112,13 @@ def _field_from_value(value: str | None, confidence: float | None) -> Field_:
     return Field_(value=cleaned, status=status, confidence=confidence, provenance="parser")
 
 
-def _strip_spaces(value: str | None) -> str | None:
+def _strip_to_alphanumeric(value: str | None) -> str | None:
     if not isinstance(value, str):
         return value
-    return "".join(value.split()).upper() or None
+    # Keep only [A-Z0-9]: drops spaces, dots, dashes and invisible characters (e.g. a
+    # zero-width space) that a model can emit and that would otherwise break IBAN/BIC/
+    # SIREN/SIRET validation or, worse, a real bank transfer.
+    return re.sub(r"[^A-Za-z0-9]", "", value).upper() or None
 
 
 class LegalParseOutput(BaseModel):
@@ -151,8 +155,8 @@ def _build_legal_block(result: ParseResult) -> LegalBlock:
     data = _LegalExtraction.model_validate(result.data)
     fields = LegalFields(
         legal_name=_field_from_value(data.legal_name, data.legal_name_confidence),
-        siren=_field_from_value(_strip_spaces(data.siren), data.siren_confidence),
-        siret=_field_from_value(_strip_spaces(data.siret), data.siret_confidence),
+        siren=_field_from_value(_strip_to_alphanumeric(data.siren), data.siren_confidence),
+        siret=_field_from_value(_strip_to_alphanumeric(data.siret), data.siret_confidence),
         legal_form=_field_from_value(data.legal_form, data.legal_form_confidence),
         registered_address=_field_from_value(
             data.registered_address, data.registered_address_confidence
@@ -185,8 +189,8 @@ def _build_banking_block(result: ParseResult) -> BankingBlock:
     fields = BankingFields(
         account_holder=_field_from_value(data.account_holder, data.account_holder_confidence),
         bank_name=_field_from_value(data.bank_name, data.bank_name_confidence),
-        iban=_field_from_value(_strip_spaces(data.iban), data.iban_confidence),
-        bic=_field_from_value(_strip_spaces(data.bic), data.bic_confidence),
+        iban=_field_from_value(_strip_to_alphanumeric(data.iban), data.iban_confidence),
+        bic=_field_from_value(_strip_to_alphanumeric(data.bic), data.bic_confidence),
     )
     has_minimum = bool(fields.account_holder.value) and bool(fields.iban.value)
     status = "ready" if has_minimum else "couldnt_parse"
