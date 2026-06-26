@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { SourceFile } from "@/types/contract";
 import { apiBaseUrl } from "@/api/client";
@@ -23,6 +23,14 @@ let pinchStartDistance = 0;
 let pinchStartZoom = 1;
 
 const activeFile = computed<SourceFile | null>(() => props.files[activeIndex.value] ?? null);
+const imageLoaded = ref(false);
+
+watch(
+  () => activeFile.value?.id,
+  () => {
+    imageLoaded.value = false;
+  },
+);
 
 function resolveUrl(file: SourceFile): string {
   if (file.url.startsWith("http") || file.url.startsWith("blob:") || file.url.startsWith("data:")) {
@@ -174,8 +182,15 @@ function onPointerUp(event: PointerEvent): void {
             :class="drag.active ? '' : 'transition-transform duration-150'"
             :style="{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }"
             draggable="false"
+            @load="imageLoaded = true"
+            @error="imageLoaded = true"
           />
         </div>
+        <div
+          v-if="activeFile?.kind === 'image' && !imageLoaded"
+          class="absolute inset-0 animate-pulse bg-summit-100/70"
+          aria-hidden="true"
+        ></div>
       </div>
     </template>
   </div>

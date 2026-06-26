@@ -35,6 +35,7 @@ const removedToast = computed(() => (store.lastRemovedGroup != null ? t("menu.gr
 const duplicateToast = computed(() => (store.skippedDuplicates.length > 0 ? t("menu.duplicateSkipped") : null));
 const highlights = computed(() => store.menuHighlights);
 const hasSources = computed(() => props.menu.source_files.length > 0);
+const isParsing = computed(() => props.menu.status === "parsing");
 const isEmpty = computed(() => props.menu.groups.every((x) => x.items.length === 0) && props.menu.groups.length === 0);
 
 watch(
@@ -147,7 +148,7 @@ function dismissToast(): void {
       </aside>
 
       <div class="min-w-0 space-y-4">
-        <MenuFileStrip :files="menu.source_files" :on-add="addFiles" :on-remove="removeFile" />
+        <MenuFileStrip :files="menu.source_files" :on-add="addFiles" :on-remove="removeFile" :disabled="isParsing" />
 
         <MenuReviewBanner
           :count="reviewCount"

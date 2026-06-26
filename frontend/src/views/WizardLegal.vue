@@ -41,6 +41,7 @@ onUnmounted(() => {
 const legal = computed(() => onboarding.legal.value);
 const block = computed(() => onboarding.onboarding.value);
 const hasDocument = computed(() => (legal.value?.status ?? "empty") !== "empty");
+const isParsing = computed(() => legal.value?.status === "parsing");
 
 const reviewState = computed<ReviewState>(() => {
   const fields = legal.value?.fields;
@@ -172,6 +173,7 @@ function verifiedMessage(name: LegalFieldName): string | undefined {
         :prompt="t('legal.uploadPrompt')"
         :hint="t('legal.uploadHint')"
         :has-document="hasDocument"
+        :disabled="isParsing"
         class="mb-5"
       />
 

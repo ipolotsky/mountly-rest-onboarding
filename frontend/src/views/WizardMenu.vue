@@ -79,6 +79,7 @@ async function confirm(): Promise<void> {
       :hint="t('menu.uploadHint')"
       :has-document="false"
       :multiple="true"
+      :disabled="isParsing"
       class="mb-5"
     />
 

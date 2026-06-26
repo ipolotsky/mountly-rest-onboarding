@@ -33,6 +33,7 @@ onUnmounted(() => {
 const banking = computed(() => onboarding.banking.value);
 const block = computed(() => onboarding.onboarding.value);
 const hasDocument = computed(() => (banking.value?.status ?? "empty") !== "empty");
+const isParsing = computed(() => banking.value?.status === "parsing");
 
 const ibanResult = computed(() => ibanValidation(banking.value?.fields.iban.value ?? null));
 
@@ -161,6 +162,7 @@ function fieldError(name: BankingFieldName): string | undefined {
         :prompt="t('banking.uploadPrompt')"
         :hint="t('banking.uploadHint')"
         :has-document="hasDocument"
+        :disabled="isParsing"
         class="mb-5"
       />
 

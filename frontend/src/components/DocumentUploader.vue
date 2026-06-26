@@ -8,6 +8,7 @@ interface DocumentUploaderProps {
   hint?: string;
   multiple?: boolean;
   hasDocument?: boolean;
+  disabled?: boolean;
 }
 
 const props = defineProps<DocumentUploaderProps>();
@@ -36,21 +37,32 @@ function emitFiles(fileList: FileList | null): void {
 
 function onInputChange(event: Event): void {
   const target = event.target as HTMLInputElement;
-  emitFiles(target.files);
+  if (props.disabled !== true) {
+    emitFiles(target.files);
+  }
   target.value = "";
 }
 
 function onDrop(event: DragEvent): void {
   event.preventDefault();
   dragging.value = false;
+  if (props.disabled === true) {
+    return;
+  }
   emitFiles(event.dataTransfer?.files ?? null);
 }
 
 function openFilePicker(): void {
+  if (props.disabled === true) {
+    return;
+  }
   fileInput.value?.click();
 }
 
 function openCamera(): void {
+  if (props.disabled === true) {
+    return;
+  }
   cameraInput.value?.click();
 }
 
@@ -65,6 +77,7 @@ defineExpose({ openFilePicker });
       class="hidden"
       accept="image/*,application/pdf"
       :multiple="multiple ?? false"
+      :disabled="disabled === true"
       @change="onInputChange"
     />
     <input
@@ -74,13 +87,15 @@ defineExpose({ openFilePicker });
       accept="image/*"
       capture="environment"
       :multiple="multiple ?? false"
+      :disabled="disabled === true"
       @change="onInputChange"
     />
 
     <div
       v-if="!hasDocument"
       class="flex flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed px-6 py-10 text-center transition"
-      :class="dragging ? 'border-summit-400 bg-summit-50' : 'border-summit-200 bg-white'"
+      :class="[dragging ? 'border-summit-400 bg-summit-50' : 'border-summit-200 bg-white', disabled === true ? 'pointer-events-none opacity-60' : '']"
+      :aria-disabled="disabled === true"
       @dragover.prevent="dragging = true"
       @dragleave.prevent="dragging = false"
       @drop="onDrop"
@@ -96,28 +111,28 @@ defineExpose({ openFilePicker });
         <p v-if="hint" class="mt-1 text-sm text-slate-500">{{ hint }}</p>
       </div>
       <div class="flex flex-wrap items-center justify-center gap-2">
-        <button type="button" class="btn-primary px-4 py-2.5 text-sm sm:hidden" @click="openCamera">
+        <button type="button" class="btn-primary px-4 py-2.5 text-sm sm:hidden" :disabled="disabled === true" @click="openCamera">
           <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z" />
             <circle cx="12" cy="13" r="3" />
           </svg>
           {{ t("uploader.takePhoto") }}
         </button>
-        <button type="button" class="btn-soft px-4 py-2.5 text-sm" @click="openFilePicker">
+        <button type="button" class="btn-soft px-4 py-2.5 text-sm" :disabled="disabled === true" @click="openFilePicker">
           {{ t("uploader.chooseFile") }}
         </button>
       </div>
     </div>
 
     <div v-else class="flex flex-wrap items-center gap-2">
-      <button type="button" class="btn-soft px-4 py-2 text-sm" @click="openFilePicker">
+      <button type="button" class="btn-soft px-4 py-2 text-sm" :disabled="disabled === true" @click="openFilePicker">
         <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v6h6M20 20v-6h-6" />
           <path stroke-linecap="round" stroke-linejoin="round" d="M5.5 9a7 7 0 0 1 12-2.5M18.5 15a7 7 0 0 1-12 2.5" />
         </svg>
         {{ t("uploader.replace") }}
       </button>
-      <button type="button" class="btn-ghost px-3 py-2 text-sm sm:hidden" @click="openCamera">
+      <button type="button" class="btn-ghost px-3 py-2 text-sm sm:hidden" :disabled="disabled === true" @click="openCamera">
         {{ t("uploader.takePhoto") }}
       </button>
     </div>
