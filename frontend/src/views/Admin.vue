@@ -16,6 +16,8 @@ const metrics = ref<AdminMetrics | null>(null);
 const rows = ref<AdminOnboardingRow[]>([]);
 const loading = ref(true);
 
+const eurFormatter = new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 onMounted(async () => {
   try {
     const [loadedMetrics, loadedRows] = await Promise.all([fetchAdminMetrics(), fetchAdminOnboardings()]);
@@ -36,7 +38,7 @@ const ttvValues = computed<number[]>(() => {
 });
 
 function formatEur(value: number): string {
-  return `${value.toFixed(3)} €`;
+  return `${eurFormatter.format(value)} €`;
 }
 
 function formatPercent(value: number): string {
@@ -129,7 +131,10 @@ function openOnboarding(row: AdminOnboardingRow): void {
                 <tr v-for="entry in metrics.friction" :key="entry.step" class="border-b border-summit-50 last:border-0">
                   <td class="py-2 font-medium text-slate-700">{{ stepLabel(entry.step) }}</td>
                   <td class="py-2 text-slate-600">{{ formatPercent(entry.drop_off) }}</td>
-                  <td class="py-2 text-slate-500">{{ entry.top_reason ?? "—" }}</td>
+                  <td class="py-2">
+                    <StatusPill v-if="entry.top_reason != null" :status="entry.top_reason" kind="reason" />
+                    <span v-else class="text-slate-400">—</span>
+                  </td>
                   <td class="py-2 text-right text-slate-600">{{ formatDuration(entry.median_ms) }}</td>
                 </tr>
               </tbody>

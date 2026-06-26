@@ -18,13 +18,21 @@ function mountField(value: PriceVariant[], onChange: (next: PriceVariant[]) => v
 }
 
 describe("PriceField single-price normalization", () => {
-  it("normalizes a comma decimal to a 2dp double on blur", async () => {
+  it("normalizes a comma decimal to a 2dp value on blur", async () => {
     const onChange = vi.fn();
     const wrapper = mountField([], onChange);
     const input = wrapper.get("input");
     await input.setValue("12,50");
     await input.trigger("blur");
-    expect(onChange).toHaveBeenCalledWith([{ label: null, amount: "12.50" }]);
+    expect(onChange).toHaveBeenCalledWith([{ label: null, amount: "12,50" }]);
+  });
+
+  it("filters out letters so a non-numeric entry cannot be typed", async () => {
+    const onChange = vi.fn();
+    const wrapper = mountField([], onChange);
+    const input = wrapper.get("input");
+    await input.setValue("12a,b5");
+    expect((input.element as HTMLInputElement).value).toBe("12,5");
   });
 
   it("clears to a price-less item when the input is non-numeric", async () => {
@@ -40,7 +48,7 @@ describe("PriceField single-price normalization", () => {
     const onChange = vi.fn();
     const wrapper = mountField([{ label: null, amount: "12,50 €" }], onChange);
     const input = wrapper.get("input").element as HTMLInputElement;
-    expect(input.value).toBe("12.50");
+    expect(input.value).toBe("12,50");
     expect(input.value).not.toContain("€");
   });
 });

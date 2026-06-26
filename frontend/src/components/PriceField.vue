@@ -2,7 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { PriceVariant } from "@/types/contract";
-import { amountForEdit, normalizeAmount } from "@/domain/prices";
+import { amountForEdit, normalizeAmount, sanitizePriceInput } from "@/domain/prices";
 import VariantTable from "@/components/VariantTable.vue";
 
 interface PriceFieldProps {
@@ -39,6 +39,13 @@ watch(
 
 const isPriceless = computed(() => props.value.length === 0 || props.value.every((x) => x.amount == null || x.amount.length === 0));
 
+function onPriceInput(event: Event): void {
+  const target = event.target as HTMLInputElement;
+  const sanitized = sanitizePriceInput(target.value);
+  draft.value = sanitized;
+  target.value = sanitized;
+}
+
 function commitSingle(): void {
   const normalized = normalizeAmount(draft.value);
   draft.value = normalized;
@@ -67,11 +74,12 @@ function onCollapse(remaining: PriceVariant): void {
     <div v-if="!showTable" class="flex items-center gap-2">
       <div class="relative flex-1">
         <input
-          v-model="draft"
+          :value="draft"
           type="text"
           inputmode="decimal"
           class="input-field py-2 pr-9 text-sm"
           :placeholder="t('menu.noPrice')"
+          @input="onPriceInput"
           @blur="commitSingle"
           @keydown.enter.prevent="commitSingle"
         />

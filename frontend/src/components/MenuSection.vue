@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { MenuGroup, MenuItem, PriceVariant } from "@/types/contract";
 import { UNCATEGORIZED_GROUP_NAME } from "@/domain/factory";
@@ -49,8 +49,29 @@ const orderedItems = computed<MenuItem[]>(() => {
   });
 });
 
-function onTitleInput(event: Event): void {
-  props.onRename((event.target as HTMLInputElement).value);
+// Buffer the title locally and commit on blur, so renaming a section never round-trips per
+// keystroke (which would let the save echo jump the cursor and drop characters).
+const titleDraft = ref(props.group.name);
+const titleFocused = ref(false);
+
+watch(
+  () => props.group.name,
+  (value) => {
+    if (!titleFocused.value) {
+      titleDraft.value = value;
+    }
+  },
+);
+
+function commitTitle(): void {
+  if (titleDraft.value !== props.group.name) {
+    props.onRename(titleDraft.value);
+  }
+}
+
+function onTitleBlur(): void {
+  titleFocused.value = false;
+  commitTitle();
 }
 
 function toggleCollapse(): void {
@@ -86,12 +107,14 @@ function cancelRemoveGroup(): void {
       </button>
 
       <input
+        v-model="titleDraft"
         type="text"
         class="min-w-0 flex-1 border-0 bg-transparent p-0 text-base font-bold text-summit-900 placeholder:text-slate-400 focus:outline-none focus:ring-0 disabled:cursor-default"
-        :value="group.name"
         :disabled="isBucket"
         :placeholder="t('menu.newSection')"
-        @input="onTitleInput"
+        @focus="titleFocused = true"
+        @blur="onTitleBlur"
+        @keydown.enter.prevent="commitTitle"
       />
 
       <span class="shrink-0 text-xs font-medium text-slate-400">

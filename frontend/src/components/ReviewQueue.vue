@@ -64,11 +64,40 @@ function remove(): void {
   props.onRemove(current.value.groupId, current.value.item.id);
 }
 
-function editName(value: string): void {
+// Buffer the name locally and commit on blur, so editing never round-trips per keystroke
+// (which would let the save echo jump the cursor and drop characters mid-typing).
+const nameDraft = ref(current.value?.item.name.value ?? "");
+const nameFocused = ref(false);
+
+watch(
+  () => current.value?.item.id,
+  () => {
+    nameDraft.value = current.value?.item.name.value ?? "";
+  },
+);
+
+watch(
+  () => current.value?.item.name.value,
+  (value) => {
+    if (!nameFocused.value) {
+      nameDraft.value = value ?? "";
+    }
+  },
+);
+
+function commitName(): void {
   if (current.value == null) {
     return;
   }
-  props.onName(current.value.groupId, current.value.item.id, value.length > 0 ? value : null);
+  const value = nameDraft.value.length > 0 ? nameDraft.value : null;
+  if (value !== (current.value.item.name.value ?? null)) {
+    props.onName(current.value.groupId, current.value.item.id, value);
+  }
+}
+
+function onNameBlur(): void {
+  nameFocused.value = false;
+  commitName();
 }
 
 function editPrices(value: PriceVariant[]): void {
@@ -104,11 +133,13 @@ function editPrices(value: PriceVariant[]): void {
 
         <div class="space-y-3 rounded-xl border border-amber-200 bg-amber-50/40 p-4">
           <input
+            v-model="nameDraft"
             type="text"
             class="input-field"
-            :value="current.item.name.value ?? ''"
             :placeholder="t('menu.itemName')"
-            @input="editName(($event.target as HTMLInputElement).value)"
+            @focus="nameFocused = true"
+            @blur="onNameBlur"
+            @keydown.enter.prevent="commitName"
           />
           <p v-if="(current.item.description.value ?? '').length > 0" class="text-sm text-slate-500">
             {{ current.item.description.value }}

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { MenuItem, PriceVariant } from "@/types/contract";
 import PriceField from "@/components/PriceField.vue";
@@ -30,14 +30,53 @@ const isReparseNew = computed(() => props.item.provenance === "parser" && props.
 
 const descriptionOpen = ref((props.item.description.value ?? "").length > 0);
 
-function onNameInput(event: Event): void {
-  const value = (event.target as HTMLInputElement).value;
-  props.onName(value.length > 0 ? value : null);
+// Edits are buffered locally and committed on blur, so typing never round-trips to the server
+// per keystroke (which would jump the cursor and drop characters when the save echo lands).
+const nameDraft = ref(props.item.name.value ?? "");
+const nameFocused = ref(false);
+const descriptionDraft = ref(props.item.description.value ?? "");
+const descriptionFocused = ref(false);
+
+watch(
+  () => props.item.name.value,
+  (value) => {
+    if (!nameFocused.value) {
+      nameDraft.value = value ?? "";
+    }
+  },
+);
+
+watch(
+  () => props.item.description.value,
+  (value) => {
+    if (!descriptionFocused.value) {
+      descriptionDraft.value = value ?? "";
+    }
+  },
+);
+
+function commitName(): void {
+  const value = nameDraft.value.length > 0 ? nameDraft.value : null;
+  if (value !== (props.item.name.value ?? null)) {
+    props.onName(value);
+  }
 }
 
-function onDescriptionInput(event: Event): void {
-  const value = (event.target as HTMLTextAreaElement).value;
-  props.onDescription(value.length > 0 ? value : null);
+function onNameBlur(): void {
+  nameFocused.value = false;
+  commitName();
+}
+
+function commitDescription(): void {
+  const value = descriptionDraft.value.length > 0 ? descriptionDraft.value : null;
+  if (value !== (props.item.description.value ?? null)) {
+    props.onDescription(value);
+  }
+}
+
+function onDescriptionBlur(): void {
+  descriptionFocused.value = false;
+  commitDescription();
 }
 
 function toggleDescription(): void {
@@ -70,11 +109,13 @@ function cancelRemove(): void {
       <div class="min-w-0 flex-1 space-y-1.5">
         <div class="flex items-center gap-2">
           <input
+            v-model="nameDraft"
             type="text"
             class="w-full border-0 bg-transparent p-0 text-sm font-semibold text-slate-900 placeholder:font-normal placeholder:text-slate-400 focus:outline-none focus:ring-0"
-            :value="item.name.value ?? ''"
             :placeholder="t('menu.itemName')"
-            @input="onNameInput"
+            @focus="nameFocused = true"
+            @blur="onNameBlur"
+            @keydown.enter.prevent="commitName"
           />
           <span v-if="isReparseNew" class="shrink-0 rounded-full bg-summit-100 px-2 py-0.5 text-[10px] font-semibold text-summit-700">
             {{ t("menu.newOnReparse") }}
@@ -83,11 +124,12 @@ function cancelRemove(): void {
 
         <textarea
           v-if="descriptionOpen"
+          v-model="descriptionDraft"
           rows="2"
           class="w-full resize-none border-0 bg-transparent p-0 text-xs text-slate-500 placeholder:text-slate-300 focus:outline-none focus:ring-0"
-          :value="item.description.value ?? ''"
           :placeholder="t('menu.itemDescription')"
-          @input="onDescriptionInput"
+          @focus="descriptionFocused = true"
+          @blur="onDescriptionBlur"
         ></textarea>
         <button v-else type="button" class="text-[11px] font-medium text-summit-500 hover:text-summit-700" @click="toggleDescription">
           + {{ t("menu.itemDescription") }}

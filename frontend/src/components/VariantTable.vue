@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
 import type { PriceVariant } from "@/types/contract";
-import { amountForEdit, normalizeAmount } from "@/domain/prices";
+import { amountForEdit, normalizeAmount, sanitizePriceInput } from "@/domain/prices";
 
 const QUICK_CHIPS = ["25 cl", "33 cl", "50 cl", "Verre", "Bouteille"];
 
@@ -18,6 +18,11 @@ const { t } = useI18n();
 function updateLabel(index: number, label: string): void {
   const next = props.value.map((x, i) => (i === index ? { label: label.length > 0 ? label : null, amount: x.amount } : x));
   props.onChange(next);
+}
+
+function onAmountInput(event: Event): void {
+  const target = event.target as HTMLInputElement;
+  target.value = sanitizePriceInput(target.value);
 }
 
 function commitAmount(index: number, amount: string): void {
@@ -59,7 +64,7 @@ function chipUsed(chip: string): boolean {
           class="input-field flex-1 py-2 text-sm"
           :value="variant.label ?? ''"
           :placeholder="t('menu.variantLabel')"
-          @input="updateLabel(index, ($event.target as HTMLInputElement).value)"
+          @change="updateLabel(index, ($event.target as HTMLInputElement).value)"
         />
         <div class="relative w-24 shrink-0">
           <input
@@ -68,6 +73,7 @@ function chipUsed(chip: string): boolean {
             class="input-field w-full py-2 pr-7 text-sm"
             :value="amountForEdit(variant.amount)"
             :placeholder="t('menu.variantAmount')"
+            @input="onAmountInput"
             @blur="commitAmount(index, ($event.target as HTMLInputElement).value)"
             @keydown.enter.prevent="commitAmount(index, ($event.target as HTMLInputElement).value)"
           />

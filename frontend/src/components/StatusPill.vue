@@ -2,14 +2,14 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 
-type PillKind = "onboarding" | "registry";
+type PillKind = "onboarding" | "registry" | "reason";
 
 interface StatusPillProps {
   status: string;
   kind: PillKind;
 }
 
-const COLORS: Record<PillKind, Record<string, string>> = {
+const COLORS: Record<"onboarding" | "registry", Record<string, string>> = {
   onboarding: {
     publishable: "bg-emerald-50 text-emerald-700",
     completed: "bg-sky-50 text-sky-700",
@@ -23,18 +23,33 @@ const COLORS: Record<PillKind, Record<string, string>> = {
   },
 };
 
+const REASON_COLOR = "bg-amber-50 text-amber-700";
 const FALLBACK = "bg-slate-100 text-slate-600";
 
 const props = defineProps<StatusPillProps>();
 
 const { t, te } = useI18n();
 
-const colorClass = computed(() => COLORS[props.kind][props.status] ?? FALLBACK);
+const colorClass = computed(() => {
+  if (props.kind === "reason") {
+    return REASON_COLOR;
+  }
+  return COLORS[props.kind][props.status] ?? FALLBACK;
+});
 
 const label = computed(() => {
+  if (props.kind === "reason") {
+    const reasonKey = `admin.frictionReasons.${props.status}`;
+    return te(reasonKey) ? t(reasonKey) : humanize(props.status);
+  }
   const key = props.kind === "registry" ? `admin.registryStatuses.${props.status}` : `admin.statuses.${props.status}`;
   return te(key) ? t(key) : props.status;
 });
+
+function humanize(value: string): string {
+  const spaced = value.replace(/_/g, " ");
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
 </script>
 
 <template>

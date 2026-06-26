@@ -53,7 +53,7 @@ describe("crash-safe rendering", () => {
 
     const wrapper = mountDisplay(menu);
     expect(wrapper.text()).toContain("25 cl");
-    expect(wrapper.text()).toContain("3.50 €");
+    expect(wrapper.text()).toContain("3,50 €");
     expect(wrapper.text()).toContain("6 €");
   });
 });

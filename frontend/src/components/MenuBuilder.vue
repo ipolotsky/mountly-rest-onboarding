@@ -14,6 +14,7 @@ import SourcePreview from "@/components/SourcePreview.vue";
 import UndoToast from "@/components/UndoToast.vue";
 
 const HIGHLIGHT_FADE_MS = 5000;
+const TOAST_TIMEOUT_MS = 7000;
 
 interface MenuBuilderProps {
   menu: MenuBlock;
@@ -63,7 +64,7 @@ watch(duplicateToast, (value) => {
   if (value != null) {
     duplicateTimer = setTimeout(() => {
       store.dismissSkippedDuplicates();
-    }, 4000);
+    }, TOAST_TIMEOUT_MS);
   }
 });
 
@@ -218,7 +219,7 @@ function dismissToast(): void {
       :on-close="() => (queueOpen = false)"
     />
 
-    <UndoToast :message="removedToast" :on-undo="undoRemove" :on-dismiss="dismissToast" />
+    <UndoToast :message="removedToast" :on-undo="undoRemove" :on-dismiss="dismissToast" :timeout-ms="TOAST_TIMEOUT_MS" />
 
     <transition name="toast">
       <div
