@@ -38,7 +38,7 @@ MENU = {
 
 @pytest.fixture(autouse=True)
 def patched_ai(monkeypatch):
-    def fake_extract(model, output_model, blocks, instruction, max_tokens=4096):
+    async def fake_extract(model, output_model, blocks, instruction, max_tokens=4096):
         if output_model is parsers._LegalExtraction:
             data = LEGAL
         elif output_model is parsers._MenuExtraction:
@@ -48,10 +48,11 @@ def patched_ai(monkeypatch):
         usage = ParseUsage(model=model, tokens_in=900, tokens_out=300, cost_eur=0.01)
         return ParseResult(status="ok", data=data, usage=usage)
 
+    async def fake_verify(siren, legal_name):
+        return RegistryResult(status="match", name_match=True)
+
     monkeypatch.setattr(parsers, "extract", fake_extract)
-    monkeypatch.setattr(
-        registry, "verify_siren", lambda s, n: RegistryResult(status="match", name_match=True)
-    )
+    monkeypatch.setattr(registry, "verify_siren", fake_verify)
 
 
 def _pdf(name: str):

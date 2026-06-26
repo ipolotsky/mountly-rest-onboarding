@@ -54,7 +54,7 @@ def reset_state() -> None:
     _cache.clear()
 
 
-def verify_siren(siren: str, legal_name: str | None) -> RegistryResult:
+async def verify_siren(siren: str, legal_name: str | None) -> RegistryResult:
     cached = _cache.get(siren)
     if cached is not None:
         return cached.model_copy(update={"cached": True})
@@ -64,11 +64,11 @@ def verify_siren(siren: str, legal_name: str | None) -> RegistryResult:
 
     started = time.monotonic()
     try:
-        response = httpx.get(
-            f"{settings.registry_base_url}/search",
-            params={"q": siren},
-            timeout=settings.registry_timeout_seconds,
-        )
+        async with httpx.AsyncClient(timeout=settings.registry_timeout_seconds) as http_client:
+            response = await http_client.get(
+                f"{settings.registry_base_url}/search",
+                params={"q": siren},
+            )
         response.raise_for_status()
         payload = response.json()
     except Exception:

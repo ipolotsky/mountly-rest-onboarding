@@ -72,6 +72,17 @@ def _guard(onboarding_id: str, call):
         raise HTTPException(status_code=415, detail=str(error)) from error
 
 
+async def _aguard(coroutine):
+    try:
+        return await coroutine
+    except OnboardingNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Onboarding not found") from error
+    except FileTooLargeError as error:
+        raise HTTPException(status_code=413, detail=str(error)) from error
+    except UnsupportedFileError as error:
+        raise HTTPException(status_code=415, detail=str(error)) from error
+
+
 @app.get("/api/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -100,7 +111,7 @@ async def parse_legal(
     service: OnboardingService = Depends(_service),
 ) -> LegalBlock:
     uploads = await _read_uploads(files)
-    return _guard(onboarding_id, lambda: service.parse_legal(onboarding_id, uploads))
+    return await _aguard(service.parse_legal(onboarding_id, uploads))
 
 
 @app.put("/api/onboarding/{onboarding_id}/legal", response_model=LegalBlock)
@@ -118,7 +129,7 @@ async def parse_banking(
     service: OnboardingService = Depends(_service),
 ) -> BankingBlock:
     uploads = await _read_uploads(files)
-    return _guard(onboarding_id, lambda: service.parse_banking(onboarding_id, uploads))
+    return await _aguard(service.parse_banking(onboarding_id, uploads))
 
 
 @app.put("/api/onboarding/{onboarding_id}/banking", response_model=BankingBlock)
@@ -136,7 +147,7 @@ async def parse_menu(
     service: OnboardingService = Depends(_service),
 ) -> MenuBlock:
     uploads = await _read_uploads(files)
-    return _guard(onboarding_id, lambda: service.parse_menu(onboarding_id, uploads))
+    return await _aguard(service.parse_menu(onboarding_id, uploads))
 
 
 @app.put("/api/onboarding/{onboarding_id}/menu", response_model=MenuBlock)

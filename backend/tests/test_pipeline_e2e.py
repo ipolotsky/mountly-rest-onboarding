@@ -10,7 +10,7 @@ from app.schemas import MenuBlock
 
 @pytest.fixture
 def patched_llm(monkeypatch, legal_extraction, banking_extraction, menu_extraction):
-    def fake_extract(model, output_model, blocks, instruction, max_tokens=4096):
+    async def fake_extract(model, output_model, blocks, instruction, max_tokens=4096):
         if output_model is parsers._LegalExtraction:
             data = legal_extraction
         elif output_model is parsers._BankingExtraction:
@@ -27,7 +27,7 @@ def patched_llm(monkeypatch, legal_extraction, banking_extraction, menu_extracti
 
 @pytest.fixture
 def patched_registry(monkeypatch):
-    def fake_verify(siren, legal_name):
+    async def fake_verify(siren, legal_name):
         return RegistryResult(
             status="match", name_match=True, matched_name="SAVEURS DU SOLEIL LEVANT"
         )
@@ -47,8 +47,8 @@ def _ingested(kind="pdf", file_id="file_1"):
     )
 
 
-def test_legal_pipeline_produces_ready_block_with_validation(patched_llm, patched_registry):
-    state = run_pipeline(
+async def test_legal_pipeline_produces_ready_block_with_validation(patched_llm, patched_registry):
+    state = await run_pipeline(
         OnboardingState(document_type="legal", files=[_ingested()])
     )
     legal = state["legal"]
@@ -65,10 +65,10 @@ def test_legal_pipeline_produces_ready_block_with_validation(patched_llm, patche
     assert legal.registry.name_match is True
 
 
-def test_banking_pipeline_validates_and_cross_checks(patched_llm):
-    legal_state = run_pipeline(OnboardingState(document_type="legal", files=[_ingested()]))
+async def test_banking_pipeline_validates_and_cross_checks(patched_llm):
+    legal_state = await run_pipeline(OnboardingState(document_type="legal", files=[_ingested()]))
     legal = legal_state["legal"]
-    state = run_pipeline(
+    state = await run_pipeline(
         OnboardingState(
             document_type="banking",
             files=[_ingested()],
@@ -84,8 +84,8 @@ def test_banking_pipeline_validates_and_cross_checks(patched_llm):
     assert banking.cross_doc_holder_match is True
 
 
-def test_menu_pipeline_merges_groups_and_keeps_bucket(patched_llm):
-    state = run_pipeline(
+async def test_menu_pipeline_merges_groups_and_keeps_bucket(patched_llm):
+    state = await run_pipeline(
         OnboardingState(
             document_type="menu",
             files=[_ingested(kind="image")],
@@ -102,31 +102,31 @@ def test_menu_pipeline_merges_groups_and_keeps_bucket(patched_llm):
     assert "Sans catégorie" in group_names
 
 
-def test_menu_reparse_does_not_duplicate_existing_items(patched_llm):
-    first = run_pipeline(
+async def test_menu_reparse_does_not_duplicate_existing_items(patched_llm):
+    first = (await run_pipeline(
         OnboardingState(
             document_type="menu",
             files=[_ingested(kind="image", file_id="file_a")],
             existing_menu=MenuBlock(),
         )
-    )["menu"]
-    second = run_pipeline(
+    ))["menu"]
+    second = (await run_pipeline(
         OnboardingState(
             document_type="menu",
             files=[_ingested(kind="image", file_id="file_b")],
             existing_menu=first,
         )
-    )["menu"]
+    ))["menu"]
     pizzas = next(group for group in second.groups if group.name == "PIZZAS")
     assert len(pizzas.items) == 13
 
 
-def test_registry_failure_keeps_legal_ready(monkeypatch, patched_llm):
-    def failing_verify(siren, legal_name):
+async def test_registry_failure_keeps_legal_ready(monkeypatch, patched_llm):
+    async def failing_verify(siren, legal_name):
         return RegistryResult(status="unavailable", name_match=None)
 
     monkeypatch.setattr(registry, "verify_siren", failing_verify)
-    state = run_pipeline(OnboardingState(document_type="legal", files=[_ingested()]))
+    state = await run_pipeline(OnboardingState(document_type="legal", files=[_ingested()]))
     legal = state["legal"]
     assert legal.status == "ready"
     assert legal.registry.status == "unavailable"

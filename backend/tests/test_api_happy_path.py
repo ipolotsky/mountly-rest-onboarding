@@ -9,7 +9,7 @@ from app.registry import RegistryResult
 
 @pytest.fixture(autouse=True)
 def patched_ai(monkeypatch, legal_extraction, banking_extraction, menu_extraction):
-    def fake_extract(model, output_model, blocks, instruction, max_tokens=4096):
+    async def fake_extract(model, output_model, blocks, instruction, max_tokens=4096):
         if output_model is parsers._LegalExtraction:
             data = legal_extraction
         elif output_model is parsers._BankingExtraction:
@@ -21,7 +21,7 @@ def patched_ai(monkeypatch, legal_extraction, banking_extraction, menu_extractio
         usage = ParseUsage(model=model, tokens_in=1200, tokens_out=400, cost_eur=0.012)
         return ParseResult(status="ok", data=data, usage=usage)
 
-    def fake_verify(siren, legal_name):
+    async def fake_verify(siren, legal_name):
         return RegistryResult(status="match", name_match=True)
 
     monkeypatch.setattr(parsers, "extract", fake_extract)

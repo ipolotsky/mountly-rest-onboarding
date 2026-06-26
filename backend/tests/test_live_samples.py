@@ -21,28 +21,28 @@ def _require(path: Path):
         pytest.skip(f"Sample {path.name} not present")
 
 
-def test_live_legal_parse():
+async def test_live_legal_parse():
     _require_key()
     path = SAMPLES / "mock_kbis.pdf"
     _require(path)
     ingested = ingest_file("live", path.name, "application/pdf", path.read_bytes())
-    output = parse_legal([ingested.block])
+    output = await parse_legal([ingested.block])
     assert output.block.status == "ready"
     assert output.block.fields.legal_name.value
     assert output.block.fields.siren.value
 
 
-def test_live_banking_parse():
+async def test_live_banking_parse():
     _require_key()
     path = SAMPLES / "mock_rib.pdf"
     _require(path)
     ingested = ingest_file("live", path.name, "application/pdf", path.read_bytes())
-    output = parse_banking([ingested.block])
+    output = await parse_banking([ingested.block])
     assert output.block.status == "ready"
     assert output.block.fields.iban.value
 
 
-def test_live_menu_parse():
+async def test_live_menu_parse():
     _require_key()
     menu_files = sorted(
         path
@@ -54,6 +54,6 @@ def test_live_menu_parse():
     path = menu_files[0]
     media_type = "image/png" if path.suffix.lower() == ".png" else "image/jpeg"
     ingested = ingest_file("live", path.name, media_type, path.read_bytes())
-    output = parse_menu_file(ingested)
+    output = await parse_menu_file(ingested)
     assert output.status == "ready"
     assert any(group.items for group in output.groups)

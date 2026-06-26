@@ -133,8 +133,8 @@ class MenuFileParseOutput(BaseModel):
     usage: ParseUsage
 
 
-def parse_legal(blocks: list[ContentBlock]) -> LegalParseOutput:
-    result = extract(
+async def parse_legal(blocks: list[ContentBlock]) -> LegalParseOutput:
+    result = await extract(
         model=settings.model_legal,
         output_model=_LegalExtraction,
         blocks=blocks,
@@ -166,8 +166,8 @@ def _build_legal_block(result: ParseResult) -> LegalBlock:
     return LegalBlock(status=status, fields=fields)
 
 
-def parse_banking(blocks: list[ContentBlock]) -> BankingParseOutput:
-    result = extract(
+async def parse_banking(blocks: list[ContentBlock]) -> BankingParseOutput:
+    result = await extract(
         model=settings.model_banking,
         output_model=_BankingExtraction,
         blocks=blocks,
@@ -193,8 +193,8 @@ def _build_banking_block(result: ParseResult) -> BankingBlock:
     return BankingBlock(status=status, fields=fields)
 
 
-def parse_menu_file(ingested: IngestedFile) -> MenuFileParseOutput:
-    result = extract(
+async def parse_menu_file(ingested: IngestedFile) -> MenuFileParseOutput:
+    result = await extract(
         model=settings.model_menu,
         output_model=_MenuExtraction,
         blocks=[ingested.block],

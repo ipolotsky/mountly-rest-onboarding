@@ -33,13 +33,13 @@ class ContentBlock(BaseModel):
     text: str | None = None
 
 
-_client: anthropic.Anthropic | None = None
+_client: anthropic.AsyncAnthropic | None = None
 
 
-def _get_client() -> anthropic.Anthropic:
+def _get_client() -> anthropic.AsyncAnthropic:
     global _client
     if _client is None:
-        _client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        _client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     return _client
 
 
@@ -101,7 +101,7 @@ def _loads_lenient(text: str) -> dict:
 # output_config.format): on richer schemas the API can return 400 "Grammar compilation timed out".
 # Prompting for a JSON object and validating it with Pydantic is one call, has no grammar
 # compilation, and degrades to couldnt_parse on any failure (the UI always renders).
-def extract(
+async def extract(
     model: str,
     output_model: type[T],
     blocks: list[ContentBlock],
@@ -114,7 +114,7 @@ def extract(
     content = _to_message_content(blocks, instruction + "\n\n" + _json_instruction(output_model))
 
     try:
-        response = client.messages.create(
+        response = await client.messages.create(
             model=model,
             max_tokens=max_tokens,
             messages=[{"role": "user", "content": content}],

@@ -202,7 +202,7 @@ class _Dataset:
 def dataset(monkeypatch):
     active = _Dataset()
 
-    def fake_extract(model, output_model, blocks, instruction, max_tokens=4096):
+    async def fake_extract(model, output_model, blocks, instruction, max_tokens=4096):
         if output_model is parsers._LegalExtraction:
             data = active.legal
         elif output_model is parsers._BankingExtraction:
@@ -215,7 +215,7 @@ def dataset(monkeypatch):
         usage = ParseUsage(model=model, tokens_in=1500, tokens_out=600, cost_eur=0.02)
         return ParseResult(status=status, data=data, usage=usage)
 
-    def fake_verify(siren, legal_name):
+    async def fake_verify(siren, legal_name):
         return RegistryResult(status="match", name_match=True, matched_name=legal_name)
 
     monkeypatch.setattr(parsers, "extract", fake_extract)

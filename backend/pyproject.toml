@@ -33,6 +33,7 @@ include = ["app*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "auto"
 markers = [
     "live: hits the real Claude API on the sample documents (needs ANTHROPIC_API_KEY)",
 ]

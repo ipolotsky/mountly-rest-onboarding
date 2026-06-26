@@ -83,11 +83,11 @@ class OnboardingService:
     def get(self, onboarding_id: str) -> Onboarding:
         return self._to_schema(self._require(onboarding_id))
 
-    def parse_legal(self, onboarding_id: str, files: list[UploadFile]) -> LegalBlock:
+    async def parse_legal(self, onboarding_id: str, files: list[UploadFile]) -> LegalBlock:
         row = self._require(onboarding_id)
         ingested = self._store_and_ingest(onboarding_id, files).ingested
         existing = LegalBlock.model_validate(row.legal or {})
-        state = run_pipeline(
+        state = await run_pipeline(
             OnboardingState(
                 document_type="legal",
                 files=ingested,
@@ -102,12 +102,12 @@ class OnboardingService:
         self._session.commit()
         return block
 
-    def parse_banking(self, onboarding_id: str, files: list[UploadFile]) -> BankingBlock:
+    async def parse_banking(self, onboarding_id: str, files: list[UploadFile]) -> BankingBlock:
         row = self._require(onboarding_id)
         ingested = self._store_and_ingest(onboarding_id, files).ingested
         existing = BankingBlock.model_validate(row.banking or {})
         existing_legal = LegalBlock.model_validate(row.legal or {})
-        state = run_pipeline(
+        state = await run_pipeline(
             OnboardingState(
                 document_type="banking",
                 files=ingested,
@@ -123,14 +123,14 @@ class OnboardingService:
         self._session.commit()
         return block
 
-    def parse_menu(self, onboarding_id: str, files: list[UploadFile]) -> MenuBlock:
+    async def parse_menu(self, onboarding_id: str, files: list[UploadFile]) -> MenuBlock:
         row = self._require(onboarding_id)
         existing = MenuBlock.model_validate(row.menu or {})
         active_file_ids = [source.id for source in existing.source_files]
         store = self._store_and_ingest(
             onboarding_id, files, dedupe=True, active_file_ids=active_file_ids
         )
-        state = run_pipeline(
+        state = await run_pipeline(
             OnboardingState(
                 document_type="menu",
                 files=store.ingested,

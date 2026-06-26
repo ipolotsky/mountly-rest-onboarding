@@ -49,32 +49,32 @@ def _ingest_node(state: OnboardingState) -> OnboardingState:
     return state
 
 
-def _parse_legal_node(state: OnboardingState) -> OnboardingState:
+async def _parse_legal_node(state: OnboardingState) -> OnboardingState:
     if state.get("document_type") != "legal":
         return state
     blocks = [file.block for file in state.get("files", [])]
-    output = parsers.parse_legal(blocks)
+    output = await parsers.parse_legal(blocks)
     state["legal"] = output.block
     state["usages"].append(output.usage)
     return state
 
 
-def _parse_banking_node(state: OnboardingState) -> OnboardingState:
+async def _parse_banking_node(state: OnboardingState) -> OnboardingState:
     if state.get("document_type") != "banking":
         return state
     blocks = [file.block for file in state.get("files", [])]
-    output = parsers.parse_banking(blocks)
+    output = await parsers.parse_banking(blocks)
     state["banking"] = output.block
     state["usages"].append(output.usage)
     return state
 
 
-def _parse_menu_node(state: OnboardingState) -> OnboardingState:
+async def _parse_menu_node(state: OnboardingState) -> OnboardingState:
     if state.get("document_type") != "menu":
         return state
     parsed_groups: list[MenuGroup] = []
     for ingested in state.get("files", []):
-        output = parsers.parse_menu_file(ingested)
+        output = await parsers.parse_menu_file(ingested)
         state["usages"].append(output.usage)
         parsed_groups.extend(output.groups)
     state["parsed_menu_groups"] = parsed_groups
@@ -112,7 +112,7 @@ def _validate_banking(banking: BankingBlock, legal: LegalBlock | None) -> None:
     )
 
 
-def _enrich_registry_node(state: OnboardingState) -> OnboardingState:
+async def _enrich_registry_node(state: OnboardingState) -> OnboardingState:
     legal = state.get("legal")
     if legal is None or legal.status != "ready":
         return state
@@ -121,7 +121,7 @@ def _enrich_registry_node(state: OnboardingState) -> OnboardingState:
         legal.registry = LegalRegistry(status="skipped", name_match=None)
         return state
 
-    result = registry.verify_siren(siren, legal.fields.legal_name.value)
+    result = await registry.verify_siren(siren, legal.fields.legal_name.value)
     state["registry_result"] = result.model_dump()
     if result.status == "match":
         legal.registry = LegalRegistry(status="match", name_match=result.name_match)
@@ -203,8 +203,8 @@ def build_graph():
 _compiled = None
 
 
-def run_pipeline(state: OnboardingState) -> OnboardingState:
+async def run_pipeline(state: OnboardingState) -> OnboardingState:
     global _compiled
     if _compiled is None:
         _compiled = build_graph()
-    return _compiled.invoke(state)
+    return await _compiled.ainvoke(state)
