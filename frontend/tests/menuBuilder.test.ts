@@ -15,6 +15,7 @@ vi.mock("@/api/client", () => ({
 }));
 
 import { useOnboardingStore } from "@/stores/onboarding";
+import { fetchOnboarding } from "@/api/client";
 import { UNCATEGORIZED_GROUP_NAME, emptyOnboarding } from "@/domain/factory";
 
 function seedStore() {
@@ -150,5 +151,56 @@ describe("menu source-file deletion (item 5)", () => {
     expect(store.menu?.groups.find((x) => x.id === "g1")).toBeUndefined();
     const shared = store.menu?.groups.find((x) => x.id === "g2");
     expect(shared?.source_file_ids).toEqual(["f2"]);
+  });
+
+  it("drops the empty 'Sans catégorie' bucket once the last file is removed", () => {
+    const store = seedStore();
+    if (store.onboarding == null) {
+      throw new Error("seed failed");
+    }
+    store.onboarding.menu.source_files = [{ id: "f1", kind: "image", filename: "a.jpg", url: "/a" }];
+    store.onboarding.menu.groups = [
+      { id: "g1", name: "Entrées", items: [], provenance: "parser", source_file_ids: ["f1"] },
+      { id: "guncat", name: UNCATEGORIZED_GROUP_NAME, items: [], provenance: "parser", source_file_ids: [] },
+    ];
+
+    store.deleteSourceFile("f1");
+
+    expect(store.menu?.source_files.length).toBe(0);
+    expect(store.menu?.groups.length).toBe(0);
+  });
+
+  it("keeps the empty bucket while at least one file remains", () => {
+    const store = seedStore();
+    if (store.onboarding == null) {
+      throw new Error("seed failed");
+    }
+    store.onboarding.menu.source_files = [
+      { id: "f1", kind: "image", filename: "a.jpg", url: "/a" },
+      { id: "f2", kind: "image", filename: "b.jpg", url: "/b" },
+    ];
+    store.onboarding.menu.groups = [
+      { id: "g1", name: "Entrées", items: [], provenance: "parser", source_file_ids: ["f1"] },
+      { id: "guncat", name: UNCATEGORIZED_GROUP_NAME, items: [], provenance: "parser", source_file_ids: [] },
+    ];
+
+    store.deleteSourceFile("f1");
+
+    expect(store.menu?.source_files.length).toBe(1);
+    expect(store.menu?.groups.find((x) => x.name === UNCATEGORIZED_GROUP_NAME)).not.toBeUndefined();
+  });
+
+  it("heals an already-stuck empty bucket on load when no files remain", async () => {
+    const onboarding = emptyOnboarding("test_id", "fr", "desktop");
+    onboarding.menu.status = "ready";
+    onboarding.menu.groups = [
+      { id: "guncat", name: UNCATEGORIZED_GROUP_NAME, items: [], provenance: "parser", source_file_ids: [] },
+    ];
+    vi.mocked(fetchOnboarding).mockResolvedValue(onboarding);
+
+    const store = useOnboardingStore();
+    await store.load("test_id");
+
+    expect(store.menu?.groups.length).toBe(0);
   });
 });

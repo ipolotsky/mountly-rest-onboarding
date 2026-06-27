@@ -119,6 +119,14 @@ function ensureUncategorized(menu: MenuBlock): MenuGroup {
   return bucket;
 }
 
+function removeEmptyUncategorized(menu: MenuBlock): void {
+  // The "Sans catégorie" catch-all is created on parse as a drop zone; once no source files
+  // remain it is just an empty, undeletable section, so drop it.
+  menu.groups = menu.groups.filter((group) => {
+    return !(group.name === UNCATEGORIZED_GROUP_NAME && group.items.length === 0);
+  });
+}
+
 export const useOnboardingStore = defineStore("onboarding", {
   state: (): OnboardingStoreState => ({
     onboarding: null,
@@ -204,6 +212,9 @@ export const useOnboardingStore = defineStore("onboarding", {
       try {
         const onboarding = await fetchOnboarding(id);
         this.onboarding = onboarding;
+        if (onboarding.menu.source_files.length === 0) {
+          removeEmptyUncategorized(onboarding.menu);
+        }
         this.hydrateParsedSnapshotsIfNeeded();
         this.startParsingPollIfNeeded();
       } catch {
@@ -416,6 +427,9 @@ export const useOnboardingStore = defineStore("onboarding", {
       });
       for (const group of menu.groups) {
         group.source_file_ids = group.source_file_ids.filter((x) => x !== fileId);
+      }
+      if (menu.source_files.length === 0) {
+        removeEmptyUncategorized(menu);
       }
       void this.persistMenu();
     },

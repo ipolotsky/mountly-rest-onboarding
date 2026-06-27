@@ -23,6 +23,7 @@ let pinchStartDistance = 0;
 let pinchStartZoom = 1;
 
 const activeFile = computed<SourceFile | null>(() => props.files[activeIndex.value] ?? null);
+const showZoom = computed(() => activeFile.value?.kind === "image");
 const imageLoaded = ref(false);
 
 watch(
@@ -135,7 +136,7 @@ function onPointerUp(event: PointerEvent): void {
     </div>
 
     <template v-else>
-      <div class="flex items-center justify-between gap-2 pb-2">
+      <div v-if="files.length > 1 || showZoom" class="flex items-center justify-between gap-2 pb-2">
         <div v-if="files.length > 1" class="flex flex-wrap gap-1">
           <button
             v-for="(file, i) in files"
@@ -148,7 +149,7 @@ function onPointerUp(event: PointerEvent): void {
             {{ i + 1 }}
           </button>
         </div>
-        <div class="ml-auto flex items-center gap-1">
+        <div v-if="showZoom" class="ml-auto flex items-center gap-1">
           <button type="button" class="flex h-7 w-7 items-center justify-center rounded-lg bg-summit-50 text-summit-700" @click="zoomOut">
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" d="M5 12h14" /></svg>
           </button>
