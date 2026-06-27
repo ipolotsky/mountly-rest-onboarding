@@ -59,8 +59,14 @@ export const en: MessageSchema = {
       registered_address: "Registered address",
       legal_representative: "Legal representative",
     },
-    sirenError: "This SIREN number doesn't look valid. Format: 9 digits, e.g. 913 472 056.",
-    siretError: "This SIRET number doesn't look valid. 14 digits = SIREN (9) + establishment NIC (5), e.g. 913 472 056 00013.",
+    sirenError: {
+      length: "A SIREN is 9 digits, e.g. 913 472 056.",
+      checksum: "These 9 digits don't pass the SIREN control key, so there's a typo somewhere - check each digit, not the length.",
+    },
+    siretError: {
+      length: "A SIRET is 14 digits = SIREN (9) + establishment NIC (5), e.g. 913 472 056 00013.",
+      checksum: "These 14 digits don't pass the SIRET control key, so there's a typo somewhere - check each digit, not the length.",
+    },
   },
   banking: {
     title: "Your bank details",
@@ -73,8 +79,12 @@ export const en: MessageSchema = {
       iban: "IBAN",
       bic: "BIC",
     },
-    ibanError: "Double-check this account number.",
-    bicError: "Double-check this BIC code.",
+    ibanError: {
+      length: "This IBAN looks incomplete. A French IBAN is 27 characters (FR + 25), e.g. FR14 2004 1010 0505 0001 3M02 606.",
+      characters: "This IBAN has characters that aren't letters or digits - the highlighted ones look wrong.",
+      checksum: "This IBAN doesn't pass its control key, so there's a typo somewhere - check each character, not the length.",
+    },
+    bicError: "A BIC is 8 or 11 characters, e.g. BNPAFRPP or BNPAFRPPXXX.",
     holderMatch: "Holder matches the Kbis",
     holderMismatch: "Holder differs from the legal name - please check.",
   },

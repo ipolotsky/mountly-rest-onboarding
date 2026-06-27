@@ -4,7 +4,7 @@ import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import type { BlockStatus, Field, LegalFieldName } from "@/types/contract";
 import { useOnboarding } from "@/composables/useOnboarding";
-import { sirenValid, siretValid } from "@/domain/validators";
+import { sirenReason, sirenValid, siretReason, siretValid } from "@/domain/validators";
 import type { UploadRejection } from "@/domain/upload";
 import WizardChrome from "@/components/WizardChrome.vue";
 import DocumentUploader from "@/components/DocumentUploader.vue";
@@ -137,11 +137,14 @@ async function confirm(): Promise<void> {
 }
 
 function fieldError(name: LegalFieldName): string | undefined {
+  const value = legal.value?.fields[name]?.value ?? null;
   if (name === "siren") {
-    return t("legal.sirenError");
+    const reason = sirenReason(value);
+    return reason == null ? undefined : t(`legal.sirenError.${reason}`);
   }
   if (name === "siret") {
-    return t("legal.siretError");
+    const reason = siretReason(value);
+    return reason == null ? undefined : t(`legal.siretError.${reason}`);
   }
   return undefined;
 }

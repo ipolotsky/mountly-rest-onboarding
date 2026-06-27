@@ -308,9 +308,10 @@ def _run_restaurant(client, dataset, spec) -> dict:
     assert menu_body["status"] == "ready"
     obs["menu_parse"] = menu_body
 
-    # The undeletable bucket must always exist after a successful parse.
-    group_names = [group["name"] for group in menu_body["groups"]]
-    assert "Sans catégorie" in group_names
+    # No empty "Sans catégorie" bucket is added when everything is categorized.
+    assert [
+        group for group in menu_body["groups"] if group["name"] == "Sans catégorie" and not group["items"]
+    ] == []
 
     # Source URL must be rewritten to the served path.
     source = menu_body["source_files"][0]

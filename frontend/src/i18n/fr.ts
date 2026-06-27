@@ -58,8 +58,14 @@ export const fr = {
       registered_address: "Adresse du siège",
       legal_representative: "Représentant légal",
     },
-    sirenError: "Ce numéro SIREN ne semble pas valide. Format : 9 chiffres, par exemple 913 472 056.",
-    siretError: "Ce numéro SIRET ne semble pas valide. 14 chiffres = SIREN (9) + NIC établissement (5), par exemple 913 472 056 00013.",
+    sirenError: {
+      length: "Un SIREN comporte 9 chiffres, par exemple 913 472 056.",
+      checksum: "Ces 9 chiffres ne passent pas la clé de contrôle du SIREN : il y a une faute de frappe. Vérifiez chaque chiffre, pas la longueur.",
+    },
+    siretError: {
+      length: "Un SIRET comporte 14 chiffres = SIREN (9) + NIC établissement (5), par exemple 913 472 056 00013.",
+      checksum: "Ces 14 chiffres ne passent pas la clé de contrôle du SIRET : il y a une faute de frappe. Vérifiez chaque chiffre, pas la longueur.",
+    },
   },
   banking: {
     title: "Vos coordonnées bancaires",
@@ -72,8 +78,12 @@ export const fr = {
       iban: "IBAN",
       bic: "BIC",
     },
-    ibanError: "Vérifiez ce numéro de compte.",
-    bicError: "Vérifiez ce code BIC.",
+    ibanError: {
+      length: "Cet IBAN semble incomplet. Un IBAN français comporte 27 caractères (FR + 25), par exemple FR14 2004 1010 0505 0001 3M02 606.",
+      characters: "Cet IBAN contient des caractères qui ne sont ni des lettres ni des chiffres : ceux surlignés semblent incorrects.",
+      checksum: "Cet IBAN ne passe pas sa clé de contrôle : il y a une faute de frappe. Vérifiez chaque caractère, pas la longueur.",
+    },
+    bicError: "Un BIC comporte 8 ou 11 caractères, par exemple BNPAFRPP ou BNPAFRPPXXX.",
     holderMatch: "Titulaire cohérent avec le Kbis",
     holderMismatch: "Le titulaire diffère de la raison sociale - à vérifier.",
   },

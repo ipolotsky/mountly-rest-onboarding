@@ -134,7 +134,8 @@ async function confirm(): Promise<void> {
 
 function fieldError(name: BankingFieldName): string | undefined {
   if (name === "iban") {
-    return t("banking.ibanError");
+    const reason = ibanResult.value.reason;
+    return reason == null ? undefined : t(`banking.ibanError.${reason}`);
   }
   if (name === "bic") {
     return t("banking.bicError");

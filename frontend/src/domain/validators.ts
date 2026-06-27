@@ -1,8 +1,14 @@
 // Pure client-side validators. The backend is authoritative, but these gate the per-block
 // confirm and give immediate inline feedback so the owner never submits a malformed identifier.
 
+// Why a value failed, so the UI can tell "wrong length" apart from "right length, but the
+// control key doesn't add up" - the second one looks identical to the owner and is the usual
+// source of confusion (e.g. a SIRET with 14 digits that is still one mistyped digit off).
+export type ValidationReason = "length" | "characters" | "checksum";
+
 export interface ValidationResult {
   valid: boolean;
+  reason: ValidationReason | null;
   suspectIndexes: number[];
 }
 
@@ -31,26 +37,34 @@ export function luhnValid(raw: string): boolean {
   return sum % 10 === 0;
 }
 
-export function sirenValid(raw: string | null): boolean {
+export function sirenReason(raw: string | null): ValidationReason | null {
   if (raw == null) {
-    return false;
+    return "length";
   }
   const digits = digitsOnly(raw);
   if (digits.length !== 9) {
-    return false;
+    return "length";
   }
-  return luhnValid(digits);
+  return luhnValid(digits) ? null : "checksum";
 }
 
-export function siretValid(raw: string | null): boolean {
+export function sirenValid(raw: string | null): boolean {
+  return sirenReason(raw) == null;
+}
+
+export function siretReason(raw: string | null): ValidationReason | null {
   if (raw == null) {
-    return false;
+    return "length";
   }
   const digits = digitsOnly(raw);
   if (digits.length !== 14) {
-    return false;
+    return "length";
   }
-  return luhnValid(digits);
+  return luhnValid(digits) ? null : "checksum";
+}
+
+export function siretValid(raw: string | null): boolean {
+  return siretReason(raw) == null;
 }
 
 export function normalizeIban(raw: string): string {
@@ -62,11 +76,11 @@ export function normalizeIban(raw: string): string {
 // IBAN mod-97 (ISO 13616). Returns which characters look wrong so the field can highlight them.
 export function ibanValidation(raw: string | null): ValidationResult {
   if (raw == null) {
-    return { valid: false, suspectIndexes: [] };
+    return { valid: false, reason: "length", suspectIndexes: [] };
   }
   const normalized = normalizeIban(raw);
   if (normalized.length < 5 || normalized.length > 34) {
-    return { valid: false, suspectIndexes: [] };
+    return { valid: false, reason: "length", suspectIndexes: [] };
   }
 
   const suspectIndexes: number[] = [];
@@ -79,7 +93,7 @@ export function ibanValidation(raw: string | null): ValidationResult {
     }
   }
   if (suspectIndexes.length > 0) {
-    return { valid: false, suspectIndexes: suspectIndexes };
+    return { valid: false, reason: "characters", suspectIndexes: suspectIndexes };
   }
 
   const rearranged = normalized.slice(4) + normalized.slice(0, 4);
@@ -91,7 +105,8 @@ export function ibanValidation(raw: string | null): ValidationResult {
       remainder = (remainder * 10 + (piece.charCodeAt(j) - 48)) % 97;
     }
   }
-  return { valid: remainder === 1, suspectIndexes: [] };
+  const valid = remainder === 1;
+  return { valid: valid, reason: valid ? null : "checksum", suspectIndexes: [] };
 }
 
 export function ibanValid(raw: string | null): boolean {

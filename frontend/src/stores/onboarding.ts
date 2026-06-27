@@ -120,8 +120,8 @@ function ensureUncategorized(menu: MenuBlock): MenuGroup {
 }
 
 function removeEmptyUncategorized(menu: MenuBlock): void {
-  // The "Sans catégorie" catch-all is created on parse as a drop zone; once no source files
-  // remain it is just an empty, undeletable section, so drop it.
+  // The "Sans catégorie" catch-all is only useful when it actually holds items; an empty one
+  // is just an undeletable empty section, so it is never kept.
   menu.groups = menu.groups.filter((group) => {
     return !(group.name === UNCATEGORIZED_GROUP_NAME && group.items.length === 0);
   });
@@ -212,9 +212,7 @@ export const useOnboardingStore = defineStore("onboarding", {
       try {
         const onboarding = await fetchOnboarding(id);
         this.onboarding = onboarding;
-        if (onboarding.menu.source_files.length === 0) {
-          removeEmptyUncategorized(onboarding.menu);
-        }
+        removeEmptyUncategorized(onboarding.menu);
         this.hydrateParsedSnapshotsIfNeeded();
         this.startParsingPollIfNeeded();
       } catch {
@@ -394,6 +392,7 @@ export const useOnboardingStore = defineStore("onboarding", {
       try {
         const block = await apiParseMenu(this.onboarding.id, files, note);
         this.skippedDuplicates = block.skipped_duplicates ?? [];
+        removeEmptyUncategorized(block);
         this.onboarding.menu = block;
         this.parsedSnapshots.menu = deepClone(block);
         this.menuHighlights = diffMenu(before, block);
@@ -428,9 +427,6 @@ export const useOnboardingStore = defineStore("onboarding", {
       for (const group of menu.groups) {
         group.source_file_ids = group.source_file_ids.filter((x) => x !== fileId);
       }
-      if (menu.source_files.length === 0) {
-        removeEmptyUncategorized(menu);
-      }
       void this.persistMenu();
     },
 
@@ -438,6 +434,7 @@ export const useOnboardingStore = defineStore("onboarding", {
       if (this.onboarding == null) {
         return;
       }
+      removeEmptyUncategorized(this.onboarding.menu);
       await this.runSave(async () => {
         const block = await apiSaveMenu(this.onboarding!.id, this.onboarding!.menu);
         this.onboarding!.menu = block;

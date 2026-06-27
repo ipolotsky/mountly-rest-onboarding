@@ -32,7 +32,7 @@ def merge_menu_groups(
             index_by_name[normalized] = len(merged)
             merged.append(new_group)
 
-    _ensure_uncategorized(merged)
+    _prune_empty_uncategorized(merged)
     return merged
 
 
@@ -53,18 +53,11 @@ def _merge_items(
         existing_keys.add(_item_key(item))
 
 
-def _ensure_uncategorized(groups: list[MenuGroup]) -> None:
-    has_bucket = any(group.name == UNCATEGORIZED_GROUP_NAME for group in groups)
-    if has_bucket:
-        return
-    if not groups:
-        return
-    groups.append(
-        MenuGroup(
-            id="group_uncategorized",
-            name=UNCATEGORIZED_GROUP_NAME,
-            items=[],
-            provenance="parser",
-            source_file_ids=[],
-        )
-    )
+def _prune_empty_uncategorized(groups: list[MenuGroup]) -> None:
+    # The "Sans catégorie" catch-all is only useful when it actually holds items; never surface
+    # an empty one - it would be an undeletable empty section in the builder.
+    groups[:] = [
+        group
+        for group in groups
+        if not (group.name == UNCATEGORIZED_GROUP_NAME and not group.items)
+    ]

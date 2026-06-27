@@ -24,10 +24,10 @@ in the planning notes; the durable decisions are distilled into [docs/DECISIONS.
 - [x] Frontend (`frontend/`): Vue 3 + Vite + TS (strict) + Tailwind/Flowbite. 6 views (Start consent,
       WizardLegal, WizardBanking, WizardMenu builder, RestaurantPage, Admin) + 28 components. Pinia
       store, `useOnboarding`/`useAnalytics`, FR/EN i18n, contract-typed API client. Builds clean
-      (`vue-tsc` strict), lints clean, 78 Vitest tests pass. State rehydrates from the server by
+      (`vue-tsc` strict), lints clean, 112 Vitest tests pass. State rehydrates from the server by
       `onboarding_id` in localStorage; renders crash-safe from an all-missing state.
 - [x] Backend core (`backend/`): FastAPI + LangGraph + parsers/validators/registry/merge/analytics +
-      `OnboardingService` + file storage + admin metrics. `converse` node stubbed for chat. **72 tests
+      `OnboardingService` + file storage + admin metrics. `converse` node stubbed for chat. **78 tests
       pass, 3 live skipped, ruff clean, routes match the contract** (no contract deviations).
 - [x] Integration (build level): backend tests green, frontend `vite build` green, both compose files
       validate, CI wired (`.github/workflows/ci.yml`) + deploy (`deploy.yml`, SSH + docker like Aivus).
@@ -42,7 +42,7 @@ in the planning notes; the durable decisions are distilled into [docs/DECISIONS.
       that errors now reconciles to `couldnt_parse` instead of sticking in `parsing`; resumed sessions
       rehydrate the parsed snapshot so auto-fill acceptance is not under-counted. **Final: backend 72
       passed / 3 live skipped, frontend 78 passed, both lint clean, both `pytest`/`build` green, both
-      Docker images build.**
+      Docker images build. Now backend 78 passed / 3 live skipped, frontend 112 passed.**
 - [x] Live end-to-end VERIFIED on the real documents via `pytest -m live` (legal + banking + menu, all
       pass). Legal/banking pull correct values (SIREN 913472056, SAS, Morzine, MORAND Céline; IBAN
       FR76…0174, BIC AGRIFRPP878). All 7 real menu images (`menu_1..7`) parse to `ready` with correct
@@ -50,6 +50,12 @@ in the planning notes; the durable decisions are distilled into [docs/DECISIONS.
       wine list, dark phone screenshots); ~€0.33 total on Opus 4.8 (~€0.047/menu). Two fixes landed from
       the first live run (strict-grammar timeout → JSON-prompt extraction; IBAN/BIC/SIREN normalization) —
       see DECISIONS.md. Remaining: `make up` to click through the full wizard UI; deploy; README screenshots.
+- [x] Admin analytics reworked into an operator dashboard: outcome-based activation funnel with per-stage
+      drop-off, AI economics (cost per publishable, by model/step), friction per step (drop-off, badge
+      reasons, real median dwell time from step_viewed→step_confirmed), time-to-value distribution
+      histogram, status badges, clickable onboarding rows, and a customer-feedback (CSAT) panel. Added a
+      demo seeder (`make seed`, 40 onboardings + full event taxonomy). CI green; Deploy workflow green on
+      push to `main` (traefik v3.6). README expanded and a proprietary LICENSE added.
 
 > Update the checkboxes and the "Next" list below as you go.
 
@@ -78,9 +84,8 @@ in the planning notes; the durable decisions are distilled into [docs/DECISIONS.
    `mock_rib.pdf`, and the menu images). The deterministic suite passes without them (hand-authored
    golden fixtures); `make test-live` and `regen_fixtures.py` need them. Not in the repo because they
    were provided out-of-band (GDrive / attachments).
-3. **Deploy.** On the server: clone the repo, create `.env` (DOMAIN, ACME_EMAIL) and
-   `.envs/.production/{.app,.postgres}` from the templates, then `make deploy`. In GitHub, set the
-   `SSH_HOST/SSH_USER/SSH_KEY/DEPLOY_PATH` secrets so the Deploy workflow runs on push to `main`.
+3. **Deploy — configured and green.** The Deploy workflow runs on push to `main` (SSH + production
+   compose, traefik v3.6) and is passing. Remaining: put the public URL into the README "Live demo" line.
 4. Run `make test-live` on all 6 menu samples; add a "Results" section to the README with screenshots
    (evidence of graceful degradation on the chalkboard / dark screenshot).
 5. Send the short planning email (draft/outline lives in the planning notes).

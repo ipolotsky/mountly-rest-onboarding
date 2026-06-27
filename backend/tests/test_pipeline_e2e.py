@@ -99,7 +99,8 @@ async def test_menu_pipeline_merges_groups_and_keeps_bucket(patched_llm):
     assert len([name for name in group_names]) >= 4
     pizzas = next(group for group in menu.groups if group.name == "PIZZAS")
     assert len(pizzas.items) == 13
-    assert "Sans catégorie" in group_names
+    # No empty "Sans catégorie" bucket is added when everything is categorized.
+    assert [group for group in menu.groups if group.name == "Sans catégorie" and not group.items] == []
 
 
 async def test_menu_reparse_does_not_duplicate_existing_items(patched_llm):
