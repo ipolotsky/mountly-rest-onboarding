@@ -2,8 +2,8 @@
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
-import type { AdminMetrics, AdminOnboardingRow } from "@/types/contract";
-import { fetchAdminMetrics, fetchAdminOnboardings } from "@/api/client";
+import type { AdminFeedbackRow, AdminMetrics, AdminOnboardingRow } from "@/types/contract";
+import { fetchAdminFeedback, fetchAdminMetrics, fetchAdminOnboardings } from "@/api/client";
 import { formatDuration } from "@/domain/duration";
 import FunnelChart from "@/components/charts/FunnelChart.vue";
 import TtvHistogram from "@/components/charts/TtvHistogram.vue";
@@ -14,24 +14,26 @@ const router = useRouter();
 
 const metrics = ref<AdminMetrics | null>(null);
 const rows = ref<AdminOnboardingRow[]>([]);
+const feedback = ref<AdminFeedbackRow[]>([]);
 const loading = ref(true);
 
 const eurFormatter = new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const dateFormatter = new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" });
 
 onMounted(async () => {
-  try {
-    const [loadedMetrics, loadedRows] = await Promise.all([fetchAdminMetrics(), fetchAdminOnboardings()]);
-    metrics.value = loadedMetrics;
-    rows.value = loadedRows;
-  } catch {
-    metrics.value = null;
-    rows.value = [];
-  } finally {
-    loading.value = false;
-  }
+  // Load the three panels independently so one failing endpoint never blanks the dashboard.
+  const [metricsResult, rowsResult, feedbackResult] = await Promise.allSettled([
+    fetchAdminMetrics(),
+    fetchAdminOnboardings(),
+    fetchAdminFeedback(),
+  ]);
+  metrics.value = metricsResult.status === "fulfilled" ? metricsResult.value : null;
+  rows.value = rowsResult.status === "fulfilled" ? rowsResult.value : [];
+  feedback.value = feedbackResult.status === "fulfilled" ? feedbackResult.value : [];
+  loading.value = false;
 });
 
-const hasData = computed(() => metrics.value != null || rows.value.length > 0);
+const hasData = computed(() => metrics.value != null || rows.value.length > 0 || feedback.value.length > 0);
 
 const ttvValues = computed<number[]>(() => {
   return rows.value.filter((x) => x.ttv_ms != null).map((x) => x.ttv_ms ?? 0);
@@ -61,8 +63,29 @@ function stepLabel(key: string): string {
   return key;
 }
 
+function openResult(id: string): void {
+  void router.push({ name: "restaurant", query: { id: id } });
+}
+
 function openOnboarding(row: AdminOnboardingRow): void {
-  void router.push({ name: "restaurant", query: { id: row.id } });
+  openResult(row.id);
+}
+
+function formatDate(iso: string): string {
+  return dateFormatter.format(new Date(iso));
+}
+
+function csatClass(csat: number | null): string {
+  if (csat == null) {
+    return "bg-slate-100 text-slate-500";
+  }
+  if (csat <= 2) {
+    return "bg-rose-100 text-rose-700";
+  }
+  if (csat === 3) {
+    return "bg-amber-100 text-amber-700";
+  }
+  return "bg-emerald-100 text-emerald-700";
 }
 </script>
 
@@ -189,6 +212,43 @@ function openOnboarding(row: AdminOnboardingRow): void {
               </tbody>
             </table>
           </div>
+        </section>
+
+        <section class="card overflow-hidden p-0">
+          <div class="border-b border-summit-50 px-5 py-4">
+            <h2 class="text-base font-bold text-summit-900">{{ t("admin.feedbackTitle") }}</h2>
+            <p class="mt-0.5 text-xs text-slate-400">{{ t("admin.feedbackHint") }}</p>
+          </div>
+          <ul v-if="feedback.length > 0" class="divide-y divide-summit-50">
+            <li
+              v-for="entry in feedback"
+              :key="entry.id + entry.submitted_at"
+              class="cursor-pointer px-5 py-4 transition-colors hover:bg-summit-50/50"
+              :title="t('admin.openOnboarding')"
+              @click="openResult(entry.id)"
+            >
+              <div class="flex flex-wrap items-center gap-2.5">
+                <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-sm font-bold" :class="csatClass(entry.csat)">
+                  {{ entry.csat ?? "—" }}
+                </span>
+                <span class="font-mono text-xs text-summit-700">{{ entry.id.slice(0, 8) }}</span>
+                <StatusPill :status="entry.status" kind="onboarding" />
+                <span class="ml-auto text-xs text-slate-400">{{ formatDate(entry.submitted_at) }}</span>
+              </div>
+              <dl v-if="entry.helped != null || entry.improve != null" class="mt-2.5 space-y-2 text-sm">
+                <div v-if="entry.helped != null">
+                  <dt class="text-xs font-medium uppercase tracking-wide text-slate-400">{{ t("restaurant.feedbackQ1") }}</dt>
+                  <dd class="text-slate-700">{{ entry.helped }}</dd>
+                </div>
+                <div v-if="entry.improve != null">
+                  <dt class="text-xs font-medium uppercase tracking-wide text-slate-400">{{ t("restaurant.feedbackQ2") }}</dt>
+                  <dd class="text-slate-700">{{ entry.improve }}</dd>
+                </div>
+              </dl>
+              <p v-else class="mt-2 text-xs italic text-slate-400">{{ t("admin.feedbackNoText") }}</p>
+            </li>
+          </ul>
+          <p v-else class="px-5 py-8 text-center text-sm text-slate-400">{{ t("admin.feedbackEmpty") }}</p>
         </section>
       </div>
     </div>

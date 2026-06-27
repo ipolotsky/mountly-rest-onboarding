@@ -119,6 +119,7 @@ interface Onboarding {
 | POST | `/api/events` | `{ events: AnalyticsEvent[] }` | `{ ok: true }` |
 | GET | `/api/admin/onboardings` | — | `AdminOnboardingRow[]` |
 | GET | `/api/admin/metrics` | — | `AdminMetrics` |
+| GET | `/api/admin/feedback` | — | `AdminFeedbackRow[]` (latest submission per onboarding, newest first) |
 
 ### Parse semantics
 - **Parse runs in a detached background task.** A parse first sets the block to `status: "parsing"`
@@ -181,6 +182,12 @@ interface AdminOnboardingRow {
   id: string; status: string; device: "mobile"|"desktop";
   step: number; created_at: string; ttv_ms: number | null;
   ai_cost_eur: number; registry_status: string | null; csat: number | null;
+}
+
+interface AdminFeedbackRow {              // qualitative feedback, linked to the onboarding by id
+  id: string; csat: number | null;        // id = onboarding id, opens /restaurant?id=…
+  helped: string | null; improve: string | null;   // the two free-text answers (blank -> null)
+  submitted_at: string; device: "mobile"|"desktop"; status: string;
 }
 
 interface AdminMetrics {

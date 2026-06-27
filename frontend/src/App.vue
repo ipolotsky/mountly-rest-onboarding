@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { useRoute } from "vue-router";
 import AppHeader from "@/components/AppHeader.vue";
+import CookieBanner from "@/components/CookieBanner.vue";
 
 const route = useRoute();
 const isAdmin = computed(() => route.name === "admin");
@@ -17,6 +18,7 @@ const isAdmin = computed(() => route.name === "admin");
         </transition>
       </router-view>
     </main>
+    <CookieBanner />
   </div>
 </template>
 

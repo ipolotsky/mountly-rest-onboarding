@@ -7,6 +7,7 @@ from app.config import settings
 from app.models import Event, Onboarding
 from app.schemas import (
     AdminCost,
+    AdminFeedbackRow,
     AdminMetrics,
     AdminOnboardingRow,
     AdminQuality,
@@ -111,6 +112,50 @@ def admin_onboardings(session: Session) -> list[AdminOnboardingRow]:
             )
         )
     return output
+
+
+def admin_feedback(session: Session) -> list[AdminFeedbackRow]:
+    events = (
+        session.execute(
+            select(Event)
+            .where(Event.kind == "feedback_submitted")
+            .order_by(Event.created_at.desc(), Event.id.desc())
+        )
+        .scalars()
+        .all()
+    )
+    onboardings = {row.id: row for row in session.execute(select(Onboarding)).scalars().all()}
+
+    output: list[AdminFeedbackRow] = []
+    seen: set[str] = set()
+    for event in events:
+        # Events are newest-first; keep only the most recent feedback per onboarding.
+        if event.onboarding_id is None or event.onboarding_id in seen:
+            continue
+        seen.add(event.onboarding_id)
+        props = event.props or {}
+        answers = props.get("answers")
+        answers = answers if isinstance(answers, dict) else {}
+        csat = props.get("csat")
+        row = onboardings.get(event.onboarding_id)
+        output.append(
+            AdminFeedbackRow(
+                id=event.onboarding_id,
+                csat=csat if isinstance(csat, int) else None,
+                helped=_clean_text(answers.get("helped")),
+                improve=_clean_text(answers.get("improve")),
+                submitted_at=event.created_at.isoformat(),
+                device=row.device if row is not None else "desktop",
+                status=_row_status(row) if row is not None else "in_progress",
+            )
+        )
+    return output
+
+
+def _clean_text(value: object) -> str | None:
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
 
 
 def _cost_by_onboarding(session: Session) -> dict[str, float]:

@@ -140,6 +140,16 @@ export interface AdminOnboardingRow {
   csat: number | null;
 }
 
+export interface AdminFeedbackRow {
+  id: string;
+  csat: number | null;
+  helped: string | null;
+  improve: string | null;
+  submitted_at: string;
+  device: Device;
+  status: string;
+}
+
 export interface FunnelEntry {
   step: string;
   mobile: number;

@@ -1,6 +1,7 @@
 import axios from "axios";
 import type { AxiosInstance } from "axios";
 import type {
+  AdminFeedbackRow,
   AdminMetrics,
   AdminOnboardingRow,
   AnalyticsEvent,
@@ -116,5 +117,10 @@ export async function fetchAdminOnboardings(): Promise<AdminOnboardingRow[]> {
 
 export async function fetchAdminMetrics(): Promise<AdminMetrics> {
   const response = await http.get<AdminMetrics>("/admin/metrics");
+  return response.data;
+}
+
+export async function fetchAdminFeedback(): Promise<AdminFeedbackRow[]> {
+  const response = await http.get<AdminFeedbackRow[]>("/admin/feedback");
   return response.data;
 }

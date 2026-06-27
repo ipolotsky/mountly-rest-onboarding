@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { useOnboarding } from "@/composables/useOnboarding";
-import { checkFiles } from "@/domain/upload";
+import type { UploadRejection } from "@/domain/upload";
 import WizardChrome from "@/components/WizardChrome.vue";
 import DocumentUploader from "@/components/DocumentUploader.vue";
 import ParseStatus from "@/components/ParseStatus.vue";
@@ -38,11 +38,6 @@ const showUploader = computed(() => !showBuilder.value);
 const parsingCount = ref(1);
 
 async function onFiles(files: File[]): Promise<void> {
-  const check = checkFiles(files);
-  if (check.rejection != null) {
-    onboarding.track("error_shown", { step: 3, error_type: check.rejection });
-    return;
-  }
   parsingCount.value = files.length;
   for (let i = 0; i < files.length; i += 1) {
     const file = files[i];
@@ -52,6 +47,10 @@ async function onFiles(files: File[]): Promise<void> {
   if (!ok) {
     onboarding.track("error_shown", { step: 3, error_type: "couldnt_parse" });
   }
+}
+
+function onReject(reason: UploadRejection): void {
+  onboarding.track("error_shown", { step: 3, error_type: reason });
 }
 
 async function confirm(): Promise<void> {
@@ -80,6 +79,7 @@ async function confirm(): Promise<void> {
       :has-document="false"
       :multiple="true"
       :disabled="isParsing"
+      :on-reject="onReject"
       class="mb-5"
     />
 

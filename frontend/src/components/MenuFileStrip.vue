@@ -3,12 +3,15 @@ import { reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import type { SourceFile } from "@/types/contract";
 import { apiBaseUrl } from "@/api/client";
+import { checkFiles } from "@/domain/upload";
+import type { UploadRejection } from "@/domain/upload";
 
 interface MenuFileStripProps {
   files: SourceFile[];
   onAdd: (files: File[]) => void;
   onRemove: (fileId: string) => void;
   disabled?: boolean;
+  onReject?: (reason: UploadRejection) => void;
 }
 
 const props = defineProps<MenuFileStripProps>();
@@ -16,6 +19,7 @@ const props = defineProps<MenuFileStripProps>();
 const { t } = useI18n();
 
 const fileInput = ref<HTMLInputElement | null>(null);
+const uploadError = ref<string | null>(null);
 const loadedIds = reactive(new Set<string>());
 
 function resolveUrl(file: SourceFile): string {
@@ -40,6 +44,17 @@ function markLoaded(fileId: string): void {
   loadedIds.add(fileId);
 }
 
+function submitFiles(files: File[]): void {
+  const check = checkFiles(files);
+  if (check.rejection != null) {
+    uploadError.value = check.rejection === "file_too_large" ? t("uploader.fileTooLarge") : t("uploader.unsupportedType");
+    props.onReject?.(check.rejection);
+    return;
+  }
+  uploadError.value = null;
+  props.onAdd(check.accepted);
+}
+
 function onInputChange(event: Event): void {
   const target = event.target as HTMLInputElement;
   const list = target.files;
@@ -52,7 +67,7 @@ function onInputChange(event: Event): void {
       }
     }
     if (files.length > 0) {
-      props.onAdd(files);
+      submitFiles(files);
     }
   }
   target.value = "";
@@ -117,5 +132,7 @@ function onInputChange(event: Event): void {
         <span class="text-[10px] font-semibold">{{ t("menu.addFile") }}</span>
       </button>
     </div>
+
+    <p v-if="uploadError != null" class="mt-2 text-sm font-medium text-rose-600">{{ uploadError }}</p>
   </div>
 </template>

@@ -5,7 +5,7 @@ import { useRouter } from "vue-router";
 import type { BankingFieldName, BlockStatus, Field } from "@/types/contract";
 import { useOnboarding } from "@/composables/useOnboarding";
 import { bicValid, ibanValidation } from "@/domain/validators";
-import { checkFiles } from "@/domain/upload";
+import type { UploadRejection } from "@/domain/upload";
 import WizardChrome from "@/components/WizardChrome.vue";
 import DocumentUploader from "@/components/DocumentUploader.vue";
 import ParseStatus from "@/components/ParseStatus.vue";
@@ -86,17 +86,16 @@ const canConfirm = computed(() => {
 });
 
 async function onFiles(files: File[]): Promise<void> {
-  const check = checkFiles(files);
-  if (check.rejection != null) {
-    onboarding.track("error_shown", { step: 2, error_type: check.rejection });
-    return;
-  }
   manualMode.value = false;
   onboarding.track("file_uploaded", { step: 2, file_type: files[0]?.type ?? "unknown", bytes: files[0]?.size ?? 0, upload_index: 0 });
   const ok = await onboarding.store.parseBanking(files, null);
   if (!ok) {
     onboarding.track("error_shown", { step: 2, error_type: "couldnt_parse" });
   }
+}
+
+function onReject(reason: UploadRejection): void {
+  onboarding.track("error_shown", { step: 2, error_type: reason });
 }
 
 function replaceDocument(): void {
@@ -163,6 +162,7 @@ function fieldError(name: BankingFieldName): string | undefined {
         :hint="t('banking.uploadHint')"
         :has-document="hasDocument"
         :disabled="isParsing"
+        :on-reject="onReject"
         class="mb-5"
       />
 

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useI18n } from "vue-i18n";
+import { checkFiles } from "@/domain/upload";
+import type { UploadRejection } from "@/domain/upload";
 
 interface DocumentUploaderProps {
   onFiles: (files: File[]) => void;
@@ -9,6 +11,7 @@ interface DocumentUploaderProps {
   multiple?: boolean;
   hasDocument?: boolean;
   disabled?: boolean;
+  onReject?: (reason: UploadRejection) => void;
 }
 
 const props = defineProps<DocumentUploaderProps>();
@@ -16,6 +19,7 @@ const props = defineProps<DocumentUploaderProps>();
 const { t } = useI18n();
 
 const dragging = ref(false);
+const uploadError = ref<string | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
 const cameraInput = ref<HTMLInputElement | null>(null);
 
@@ -30,9 +34,17 @@ function emitFiles(fileList: FileList | null): void {
       files.push(file);
     }
   }
-  if (files.length > 0) {
-    props.onFiles(files);
+  if (files.length === 0) {
+    return;
   }
+  const check = checkFiles(files);
+  if (check.rejection != null) {
+    uploadError.value = check.rejection === "file_too_large" ? t("uploader.fileTooLarge") : t("uploader.unsupportedType");
+    props.onReject?.(check.rejection);
+    return;
+  }
+  uploadError.value = null;
+  props.onFiles(check.accepted);
 }
 
 function onInputChange(event: Event): void {
@@ -136,5 +148,10 @@ defineExpose({ openFilePicker });
         {{ t("uploader.takePhoto") }}
       </button>
     </div>
+
+    <p v-if="uploadError != null" class="mt-2 flex items-center gap-1.5 text-sm font-medium text-rose-600">
+      <svg class="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M9.1 2.5a1 1 0 0 1 1.8 0l7 12.5A1 1 0 0 1 17 16.5H3a1 1 0 0 1-.9-1.5l7-12.5ZM10 7a.9.9 0 0 0-.9.9v3a.9.9 0 0 0 1.8 0v-3A.9.9 0 0 0 10 7Zm0 6.4a.95.95 0 1 0 0 1.9.95.95 0 0 0 0-1.9Z" clip-rule="evenodd" /></svg>
+      {{ uploadError }}
+    </p>
   </div>
 </template>

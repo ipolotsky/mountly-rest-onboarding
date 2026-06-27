@@ -9,6 +9,7 @@ from app.config import settings
 from app.database import create_tables, get_session
 from app.ingest import FileTooLargeError, UnsupportedFileError
 from app.schemas import (
+    AdminFeedbackRow,
     AdminMetrics,
     AdminOnboardingRow,
     BankingBlock,
@@ -217,3 +218,10 @@ def admin_onboardings(
 @app.get("/api/admin/metrics", response_model=AdminMetrics)
 def admin_metrics(service: OnboardingService = Depends(_service)) -> AdminMetrics:
     return service.admin_metrics()
+
+
+@app.get("/api/admin/feedback", response_model=list[AdminFeedbackRow])
+def admin_feedback(
+    service: OnboardingService = Depends(_service),
+) -> list[AdminFeedbackRow]:
+    return service.admin_feedback()

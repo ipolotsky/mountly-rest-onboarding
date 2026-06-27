@@ -124,6 +124,8 @@ export const en: MessageSchema = {
     chooseFile: "Choose a file",
     replace: "Replace the document",
     dropHere: "Drop here",
+    unsupportedType: "Only images (JPG, PNG, WebP, GIF) and PDF files are accepted.",
+    fileTooLarge: "This file is too large. The maximum size is 20 MB.",
   },
   parse: {
     reading: "Reading your document… | Reading your documents…",
@@ -243,6 +245,15 @@ export const en: MessageSchema = {
       skipped: "Skipped",
     },
     none: "No data yet.",
+    feedbackTitle: "Feedback",
+    feedbackHint: "What restaurateurs said after onboarding, newest first. Tap a row to open the listing.",
+    feedbackEmpty: "No feedback yet.",
+    feedbackNoText: "Score only, no written feedback.",
+  },
+  cookies: {
+    message: "This site uses cookies to improve your experience.",
+    accept: "Got it",
+    label: "Cookie notice",
   },
   errors: {
     generic: "Something went wrong. Try again?",

@@ -158,6 +158,16 @@ class AdminOnboardingRow(BaseModel):
     csat: int | None = None
 
 
+class AdminFeedbackRow(BaseModel):
+    id: str
+    csat: int | None = None
+    helped: str | None = None
+    improve: str | None = None
+    submitted_at: str
+    device: Device = "desktop"
+    status: str
+
+
 class FunnelStage(BaseModel):
     step: str
     mobile: int

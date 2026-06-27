@@ -201,6 +201,13 @@ async function onFeedback(payload: FeedbackPayload): Promise<void> {
       </section>
 
       <FeedbackForm v-if="!readOnly && !feedbackSubmitted" :on-submit="onFeedback" />
+      <div
+        v-else-if="!readOnly && feedbackJustSubmitted"
+        class="card flex items-center gap-3 p-5 text-emerald-700 sm:p-6"
+      >
+        <svg class="h-6 w-6 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-7.5 7.5a1 1 0 0 1-1.4 0l-3.5-3.5a1 1 0 1 1 1.4-1.4L8.5 12l6.8-6.7a1 1 0 0 1 1.4 0Z" clip-rule="evenodd" /></svg>
+        <p class="font-semibold">{{ t("restaurant.feedbackThanks") }}</p>
+      </div>
     </div>
   </div>
 </template>

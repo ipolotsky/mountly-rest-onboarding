@@ -41,3 +41,39 @@ describe("DocumentUploader disabled while processing", () => {
     expect(onFiles).not.toHaveBeenCalled();
   });
 });
+
+function fileList(files: File[]): FileList {
+  return { length: files.length, item: (index: number) => files[index] ?? null } as unknown as FileList;
+}
+
+function mountWithReject(onFiles = vi.fn(), onReject = vi.fn()) {
+  return mount(DocumentUploader, {
+    props: { onFiles: onFiles, prompt: "Upload", onReject: onReject },
+    global: { plugins: [i18n] },
+  });
+}
+
+describe("DocumentUploader rejects everything but images and PDF", () => {
+  it("rejects an unsupported file, shows a message, and does not call onFiles", async () => {
+    const onFiles = vi.fn();
+    const onReject = vi.fn();
+    const wrapper = mountWithReject(onFiles, onReject);
+    const txt = new File(["x"], "notes.txt", { type: "text/plain" });
+    await wrapper.get('[aria-disabled="false"]').trigger("drop", { dataTransfer: { files: fileList([txt]) } });
+    expect(onFiles).not.toHaveBeenCalled();
+    expect(onReject).toHaveBeenCalledWith("unsupported_type");
+    expect(wrapper.text()).toContain(fr.uploader.unsupportedType);
+  });
+
+  it("accepts a supported image and clears any error", async () => {
+    const onFiles = vi.fn();
+    const onReject = vi.fn();
+    const wrapper = mountWithReject(onFiles, onReject);
+    const image = new File(["x"], "photo.png", { type: "image/png" });
+    await wrapper.get('[aria-disabled="false"]').trigger("drop", { dataTransfer: { files: fileList([image]) } });
+    expect(onReject).not.toHaveBeenCalled();
+    expect(onFiles).toHaveBeenCalledTimes(1);
+    expect(onFiles.mock.calls[0]![0]).toHaveLength(1);
+    expect(wrapper.text()).not.toContain(fr.uploader.unsupportedType);
+  });
+});

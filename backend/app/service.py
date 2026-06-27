@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import re
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
@@ -15,6 +16,7 @@ from app.ingest import IngestedFile, ingest_file
 from app.models import Onboarding as OnboardingRow
 from app.models import StoredFile
 from app.schemas import (
+    AdminFeedbackRow,
     AdminMetrics,
     AdminOnboardingRow,
     BankingBlock,
@@ -301,6 +303,9 @@ class OnboardingService:
     def admin_metrics(self) -> AdminMetrics:
         return analytics.admin_metrics(self._session)
 
+    def admin_feedback(self) -> list[AdminFeedbackRow]:
+        return analytics.admin_feedback(self._session)
+
     def _require(self, onboarding_id: str) -> OnboardingRow:
         row = self._session.get(OnboardingRow, onboarding_id)
         if row is None:
@@ -499,14 +504,27 @@ def _rewrite_source_urls(onboarding_id: str, block: MenuBlock) -> MenuBlock:
     return block
 
 
+def _canonical_identifier(value: str | None) -> str | None:
+    # Canonicalize SIREN/SIRET/IBAN/BIC on save: keep only [A-Z0-9], dropping spaces, dashes
+    # and invisible characters (e.g. a zero-width space) so the stored value is clean and a
+    # correct identifier never carries a hidden character into a real bank transfer.
+    if not value:
+        return value
+    return re.sub(r"[^A-Za-z0-9]", "", value).upper() or None
+
+
 def _revalidate_legal(block: LegalBlock) -> None:
     fields = block.fields
+    fields.siren.value = _canonical_identifier(fields.siren.value)
+    fields.siret.value = _canonical_identifier(fields.siret.value)
     fields.siren.valid = validate_siren(fields.siren.value) if fields.siren.value else None
     fields.siret.valid = validate_siret(fields.siret.value) if fields.siret.value else None
 
 
 def _revalidate_banking(block: BankingBlock, legal: LegalBlock) -> None:
     fields = block.fields
+    fields.iban.value = _canonical_identifier(fields.iban.value)
+    fields.bic.value = _canonical_identifier(fields.bic.value)
     fields.iban.valid = validate_iban(fields.iban.value) if fields.iban.value else None
     fields.bic.valid = validate_bic(fields.bic.value) if fields.bic.value else None
     legal_name = legal.fields.legal_name.value

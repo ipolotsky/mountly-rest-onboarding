@@ -14,7 +14,6 @@ const { t } = useI18n();
 const csat = ref<number | null>(null);
 const answer1 = ref("");
 const answer2 = ref("");
-const submitted = ref(false);
 const submitting = ref(false);
 
 function pick(value: number): void {
@@ -31,18 +30,12 @@ async function submit(): Promise<void> {
     answers: { helped: answer1.value.trim(), improve: answer2.value.trim() },
   });
   submitting.value = false;
-  submitted.value = true;
 }
 </script>
 
 <template>
   <div class="card p-5 sm:p-6">
-    <div v-if="submitted" class="flex items-center gap-3 text-emerald-700">
-      <svg class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-7.5 7.5a1 1 0 0 1-1.4 0l-3.5-3.5a1 1 0 1 1 1.4-1.4L8.5 12l6.8-6.7a1 1 0 0 1 1.4 0Z" clip-rule="evenodd" /></svg>
-      <p class="font-semibold">{{ t("restaurant.feedbackThanks") }}</p>
-    </div>
-
-    <div v-else>
+    <div>
       <h3 class="text-lg font-bold text-summit-900">{{ t("restaurant.feedbackTitle") }}</h3>
 
       <div class="mt-4">

@@ -4,7 +4,7 @@ import { useI18n } from "vue-i18n";
 import type { MenuBlock, PriceVariant } from "@/types/contract";
 import { useOnboardingStore } from "@/stores/onboarding";
 import { useAnalytics } from "@/composables/useAnalytics";
-import { checkFiles } from "@/domain/upload";
+import type { UploadRejection } from "@/domain/upload";
 import MenuSection from "@/components/MenuSection.vue";
 import AddSectionCard from "@/components/AddSectionCard.vue";
 import MenuReviewBanner from "@/components/MenuReviewBanner.vue";
@@ -69,12 +69,7 @@ watch(duplicateToast, (value) => {
 });
 
 async function addFiles(files: File[]): Promise<void> {
-  const check = checkFiles(files);
   const onboardingId = store.onboardingId ?? "unknown";
-  if (check.rejection != null) {
-    analytics.track("error_shown", onboardingId, { step: 3, error_type: check.rejection });
-    return;
-  }
   analytics.track("reparse_requested", onboardingId, { step: 3 });
   for (let i = 0; i < files.length; i += 1) {
     const file = files[i];
@@ -84,6 +79,10 @@ async function addFiles(files: File[]): Promise<void> {
   if (!ok) {
     analytics.track("error_shown", onboardingId, { step: 3, error_type: "couldnt_parse" });
   }
+}
+
+function rejectFiles(reason: UploadRejection): void {
+  analytics.track("error_shown", store.onboardingId ?? "unknown", { step: 3, error_type: reason });
 }
 
 function removeFile(fileId: string): void {
@@ -149,7 +148,7 @@ function dismissToast(): void {
       </aside>
 
       <div class="min-w-0 space-y-4">
-        <MenuFileStrip :files="menu.source_files" :on-add="addFiles" :on-remove="removeFile" :disabled="isParsing" />
+        <MenuFileStrip :files="menu.source_files" :on-add="addFiles" :on-remove="removeFile" :disabled="isParsing" :on-reject="rejectFiles" />
 
         <MenuReviewBanner
           :count="reviewCount"

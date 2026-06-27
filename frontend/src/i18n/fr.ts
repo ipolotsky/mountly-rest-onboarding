@@ -123,6 +123,8 @@ export const fr = {
     chooseFile: "Choisir un fichier",
     replace: "Remplacer le document",
     dropHere: "Déposez ici",
+    unsupportedType: "Seules les images (JPG, PNG, WebP, GIF) et les fichiers PDF sont acceptés.",
+    fileTooLarge: "Ce fichier est trop volumineux. Taille maximale : 20 Mo.",
   },
   parse: {
     reading: "On lit votre document… | On lit vos documents…",
@@ -242,6 +244,15 @@ export const fr = {
       skipped: "Ignoré",
     },
     none: "Aucune donnée pour l'instant.",
+    feedbackTitle: "Retours",
+    feedbackHint: "Ce que les restaurateurs ont dit après la mise en route, du plus récent au plus ancien. Cliquez une ligne pour ouvrir la fiche.",
+    feedbackEmpty: "Pas encore de retours.",
+    feedbackNoText: "Note seule, sans commentaire écrit.",
+  },
+  cookies: {
+    message: "Ce site utilise des cookies pour améliorer votre expérience.",
+    accept: "J'ai compris",
+    label: "Avis sur les cookies",
   },
   errors: {
     generic: "Quelque chose s'est mal passé. On réessaie ?",
