@@ -9,6 +9,7 @@ volumes:
   production_postgres_data: {}
   production_postgres_data_backups: {}
   production_traefik: {}
+  production_uploads: {}
 
 services:
   app:
@@ -24,6 +25,8 @@ services:
       - ./.envs/.production/.postgres
     command: /start
     restart: unless-stopped
+    volumes:
+      - production_uploads:/app/uploads
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.api.rule=Host(`${DOMAIN}`) && PathPrefix(`/api`)"

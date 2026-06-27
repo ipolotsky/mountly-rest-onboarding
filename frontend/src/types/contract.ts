@@ -130,6 +130,7 @@ export interface FeedbackPayload {
 
 export interface AdminOnboardingRow {
   id: string;
+  restaurant_name: string | null;
   status: string;
   device: Device;
   step: number;

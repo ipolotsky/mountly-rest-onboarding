@@ -236,6 +236,8 @@ export const fr = {
     onboardingsTitle: "Onboardings",
     openOnboarding: "Ouvrir l'onboarding",
     colId: "ID",
+    colName: "Restaurant",
+    colCreated: "Créé le",
     colStatus: "Statut",
     colDevice: "Appareil",
     colTtv: "TTV",

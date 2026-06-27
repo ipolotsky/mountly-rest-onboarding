@@ -237,6 +237,8 @@ export const en: MessageSchema = {
     onboardingsTitle: "Onboardings",
     openOnboarding: "Open onboarding",
     colId: "ID",
+    colName: "Restaurant",
+    colCreated: "Created",
     colStatus: "Status",
     colDevice: "Device",
     colTtv: "TTV",

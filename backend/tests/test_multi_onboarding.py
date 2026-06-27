@@ -309,9 +309,8 @@ def _run_restaurant(client, dataset, spec) -> dict:
     obs["menu_parse"] = menu_body
 
     # No empty "Sans catégorie" bucket is added when everything is categorized.
-    assert [
-        group for group in menu_body["groups"] if group["name"] == "Sans catégorie" and not group["items"]
-    ] == []
+    buckets = [group for group in menu_body["groups"] if group["name"] == "Sans catégorie"]
+    assert all(bucket["items"] for bucket in buckets)
 
     # Source URL must be rewritten to the served path.
     source = menu_body["source_files"][0]
@@ -559,7 +558,7 @@ def test_couldnt_parse_block_when_extractor_returns_nothing(client, dataset):
 
 
 def test_priceless_reparse_preserves_user_added_and_bucket(client, dataset):
-    """Re-parsing a menu keeps user-added items and never duplicates the bucket."""
+    """A user-added 'Sans catégorie' section survives a re-parse and is never duplicated."""
     created = client.post("/api/onboarding", json={"device": "mobile"})
     onboarding_id = created.json()["id"]
 
@@ -567,32 +566,34 @@ def test_priceless_reparse_preserves_user_added_and_bucket(client, dataset):
     first = client.post(
         f"/api/onboarding/{onboarding_id}/menu/parse", files={"files": _image("a.png")}
     ).json()
-    bucket_count = sum(1 for group in first["groups"] if group["name"] == "Sans catégorie")
-    assert bucket_count == 1
+    # No empty bucket is auto-created; the user adds one on demand when they need it.
+    assert [group for group in first["groups"] if group["name"] == "Sans catégorie"] == []
 
-    # Add a manual item into the bucket via PUT.
     edited = dict(first)
     edited["groups"] = [dict(group) for group in first["groups"]]
-    bucket_index = next(
-        i for i, group in enumerate(edited["groups"]) if group["name"] == "Sans catégorie"
-    )
-    bucket = dict(edited["groups"][bucket_index])
-    bucket["items"] = [
+    edited["groups"].append(
         {
-            "id": "item_in_bucket",
-            "name": {"value": "Item Maison", "status": "present", "confidence": None,
-                     "provenance": "user_added", "valid": None},
-            "description": {"value": None, "status": "missing", "confidence": None,
-                            "provenance": "user_added", "valid": None},
-            "prices": [],
-            "confidence": None,
+            "id": "group_uncategorized",
+            "name": "Sans catégorie",
+            "items": [
+                {
+                    "id": "item_in_bucket",
+                    "name": {"value": "Item Maison", "status": "present", "confidence": None,
+                             "provenance": "user_added", "valid": None},
+                    "description": {"value": None, "status": "missing", "confidence": None,
+                                    "provenance": "user_added", "valid": None},
+                    "prices": [],
+                    "confidence": None,
+                    "provenance": "user_added",
+                }
+            ],
             "provenance": "user_added",
+            "source_file_ids": [],
         }
-    ]
-    edited["groups"][bucket_index] = bucket
+    )
     client.put(f"/api/onboarding/{onboarding_id}/menu", json=edited)
 
-    # Re-parse the same menu. The user-added bucket item must survive, no duplicate bucket,
+    # Re-parse the same menu. The user-added bucket + item must survive, no duplicate bucket,
     # and PLATS must not gain duplicate items.
     second = client.post(
         f"/api/onboarding/{onboarding_id}/menu/parse", files={"files": _image("b.png")}

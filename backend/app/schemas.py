@@ -148,6 +148,7 @@ class EventsRequest(BaseModel):
 
 class AdminOnboardingRow(BaseModel):
     id: str
+    restaurant_name: str | None = None
     status: str
     device: Device
     step: int

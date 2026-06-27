@@ -179,7 +179,7 @@ Taxonomy (names + the key props that make metrics computable):
 
 ```ts
 interface AdminOnboardingRow {
-  id: string; status: string; device: "mobile"|"desktop";
+  id: string; restaurant_name: string | null; status: string; device: "mobile"|"desktop";
   step: number; created_at: string; ttv_ms: number | null;
   ai_cost_eur: number; registry_status: string | null; csat: number | null;
 }

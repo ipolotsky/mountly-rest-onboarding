@@ -1,5 +1,37 @@
 from app.database import SessionLocal
+from app.schemas import LegalBlock
 from app.service import OnboardingService
+
+
+def test_admin_onboardings_surface_restaurant_name(fresh_database):
+    with SessionLocal() as session:
+        service = OnboardingService(session)
+        onboarding_id = service.create("fr", "desktop")
+        block = LegalBlock()
+        block.fields.legal_name.value = "Chez Tester"
+        block.fields.legal_name.status = "present"
+        service.save_legal(onboarding_id, block)
+
+    with SessionLocal() as session:
+        rows = OnboardingService(session).admin_onboardings()
+
+    row = next(item for item in rows if item.id == onboarding_id)
+    assert row.restaurant_name == "Chez Tester"
+
+
+def test_admin_onboardings_are_newest_first(fresh_database):
+    with SessionLocal() as session:
+        service = OnboardingService(session)
+        service.create("fr", "desktop")
+        service.create("fr", "mobile")
+        service.create("fr", "desktop")
+
+    with SessionLocal() as session:
+        rows = OnboardingService(session).admin_onboardings()
+
+    created = [row.created_at for row in rows]
+    assert len(rows) == 3
+    assert created == sorted(created, reverse=True)
 
 
 def test_admin_feedback_surfaces_csat_answers_and_link(fresh_database):

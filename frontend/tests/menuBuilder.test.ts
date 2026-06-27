@@ -85,11 +85,10 @@ describe("menu builder mutations", () => {
     expect(restored?.items.length).toBe(1);
   });
 
-  it("never removes the 'Sans catégorie' bucket", () => {
+  it("does not keep an empty 'Sans catégorie' bucket", () => {
     const store = seedStore();
-    const bucket = store.addGroup(UNCATEGORIZED_GROUP_NAME);
-    store.removeGroup(bucket!.id);
-    expect(store.menu?.groups.find((x) => x.name === UNCATEGORIZED_GROUP_NAME)).not.toBeUndefined();
+    store.addGroup(UNCATEGORIZED_GROUP_NAME);
+    expect(store.menu?.groups.find((x) => x.name === UNCATEGORIZED_GROUP_NAME)).toBeUndefined();
   });
 
   it("keeps a price-less item valid (empty prices array)", () => {
@@ -170,7 +169,7 @@ describe("menu source-file deletion (item 5)", () => {
     expect(store.menu?.groups.length).toBe(0);
   });
 
-  it("keeps the empty bucket while at least one file remains", () => {
+  it("drops the empty 'Sans catégorie' bucket even while a file remains", () => {
     const store = seedStore();
     if (store.onboarding == null) {
       throw new Error("seed failed");
@@ -180,20 +179,23 @@ describe("menu source-file deletion (item 5)", () => {
       { id: "f2", kind: "image", filename: "b.jpg", url: "/b" },
     ];
     store.onboarding.menu.groups = [
-      { id: "g1", name: "Entrées", items: [], provenance: "parser", source_file_ids: ["f1"] },
+      { id: "g2", name: "Plats", items: [], provenance: "parser", source_file_ids: ["f2"] },
       { id: "guncat", name: UNCATEGORIZED_GROUP_NAME, items: [], provenance: "parser", source_file_ids: [] },
     ];
 
     store.deleteSourceFile("f1");
 
     expect(store.menu?.source_files.length).toBe(1);
-    expect(store.menu?.groups.find((x) => x.name === UNCATEGORIZED_GROUP_NAME)).not.toBeUndefined();
+    expect(store.menu?.groups.find((x) => x.name === UNCATEGORIZED_GROUP_NAME)).toBeUndefined();
+    expect(store.menu?.groups.find((x) => x.id === "g2")).not.toBeUndefined();
   });
 
-  it("heals an already-stuck empty bucket on load when no files remain", async () => {
+  it("heals an already-stuck empty bucket on load (the reported bug)", async () => {
     const onboarding = emptyOnboarding("test_id", "fr", "desktop");
     onboarding.menu.status = "ready";
+    onboarding.menu.source_files = [{ id: "f1", kind: "image", filename: "a.jpg", url: "/a" }];
     onboarding.menu.groups = [
+      { id: "g1", name: "Desserts", items: [], provenance: "parser", source_file_ids: ["f1"] },
       { id: "guncat", name: UNCATEGORIZED_GROUP_NAME, items: [], provenance: "parser", source_file_ids: [] },
     ];
     vi.mocked(fetchOnboarding).mockResolvedValue(onboarding);
@@ -201,6 +203,7 @@ describe("menu source-file deletion (item 5)", () => {
     const store = useOnboardingStore();
     await store.load("test_id");
 
-    expect(store.menu?.groups.length).toBe(0);
+    expect(store.menu?.groups.find((x) => x.name === UNCATEGORIZED_GROUP_NAME)).toBeUndefined();
+    expect(store.menu?.groups.find((x) => x.id === "g1")).not.toBeUndefined();
   });
 });

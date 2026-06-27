@@ -90,7 +90,8 @@ def _row_status(row: Onboarding) -> str:
 
 
 def admin_onboardings(session: Session) -> list[AdminOnboardingRow]:
-    rows = session.execute(select(Onboarding)).scalars().all()
+    query = select(Onboarding).order_by(Onboarding.created_at.desc(), Onboarding.id.desc())
+    rows = session.execute(query).scalars().all()
     cost_by_onboarding = _cost_by_onboarding(session)
 
     output: list[AdminOnboardingRow] = []
@@ -98,9 +99,12 @@ def admin_onboardings(session: Session) -> list[AdminOnboardingRow]:
         legal = row.legal or {}
         registry = legal.get("registry")
         registry_status = registry.get("status") if isinstance(registry, dict) else None
+        name_field = (legal.get("fields") or {}).get("legal_name") or {}
+        restaurant_name = name_field.get("value") or None
         output.append(
             AdminOnboardingRow(
                 id=row.id,
+                restaurant_name=restaurant_name,
                 status=_row_status(row),
                 device=row.device,
                 step=row.step,

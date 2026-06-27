@@ -177,7 +177,8 @@ function csatClass(csat: number | null): string {
             <table class="w-full text-sm">
               <thead>
                 <tr class="border-b border-summit-100 bg-summit-50/40 text-left text-xs uppercase tracking-wide text-slate-400">
-                  <th class="px-4 py-2 font-semibold">{{ t("admin.colId") }}</th>
+                  <th class="px-4 py-2 font-semibold">{{ t("admin.colName") }}</th>
+                  <th class="px-4 py-2 font-semibold">{{ t("admin.colCreated") }}</th>
                   <th class="px-4 py-2 font-semibold">{{ t("admin.colStatus") }}</th>
                   <th class="px-4 py-2 font-semibold">{{ t("admin.colDevice") }}</th>
                   <th class="px-4 py-2 text-right font-semibold">{{ t("admin.colTtv") }}</th>
@@ -194,7 +195,13 @@ function csatClass(csat: number | null): string {
                   :title="t('admin.openOnboarding')"
                   @click="openOnboarding(row)"
                 >
-                  <td class="px-4 py-2 font-mono text-xs text-summit-700">{{ row.id.slice(0, 8) }}</td>
+                  <td class="px-4 py-2">
+                    <div class="font-medium" :class="row.restaurant_name != null ? 'text-slate-800' : 'italic text-slate-400'">
+                      {{ row.restaurant_name ?? t("common.placeholder") }}
+                    </div>
+                    <div class="font-mono text-[11px] text-slate-400">{{ row.id.slice(0, 8) }}</div>
+                  </td>
+                  <td class="px-4 py-2 whitespace-nowrap text-slate-600">{{ formatDate(row.created_at) }}</td>
                   <td class="px-4 py-2"><StatusPill :status="row.status" kind="onboarding" /></td>
                   <td class="px-4 py-2">
                     <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="row.device === 'mobile' ? 'bg-summit-100 text-summit-700' : 'bg-slate-100 text-slate-600'">
