@@ -124,7 +124,6 @@ async function onFeedback(payload: FeedbackPayload): Promise<void> {
     onboarding.store.onboarding.feedback_submitted = true;
     onboarding.store.onboarding.csat = payload.csat;
   }
-  onboarding.track("feedback_submitted", { csat: payload.csat });
 }
 </script>
 

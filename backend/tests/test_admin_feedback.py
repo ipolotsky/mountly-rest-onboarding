@@ -1,3 +1,4 @@
+from app import analytics
 from app.database import SessionLocal
 from app.schemas import LegalBlock
 from app.service import OnboardingService
@@ -87,3 +88,28 @@ def test_admin_feedback_keeps_only_the_latest_per_onboarding(fresh_database):
     assert len(feedback) == 1
     assert feedback[0].csat == 5
     assert feedback[0].helped == "second"
+
+
+def test_admin_feedback_recovers_text_from_score_only_duplicate(fresh_database):
+    # A submission can split into two events: the server event carries the answers,
+    # then a client lifecycle duplicate lands a moment later with the score only.
+    # The newer score-only event must not hide the text from the older one.
+    with SessionLocal() as session:
+        service = OnboardingService(session)
+        onboarding_id = service.create("fr", "desktop")
+        service.feedback(onboarding_id, 4, {"helped": "Fast", "improve": "More"})
+        analytics.track(
+            session,
+            kind="feedback_submitted",
+            onboarding_id=onboarding_id,
+            props={"csat": 4},
+        )
+        session.commit()
+
+    with SessionLocal() as session:
+        feedback = OnboardingService(session).admin_feedback()
+
+    assert len(feedback) == 1
+    assert feedback[0].csat == 4
+    assert feedback[0].helped == "Fast"
+    assert feedback[0].improve == "More"

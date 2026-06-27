@@ -131,28 +131,42 @@ def admin_feedback(session: Session) -> list[AdminFeedbackRow]:
     onboardings = {row.id: row for row in session.execute(select(Onboarding)).scalars().all()}
 
     output: list[AdminFeedbackRow] = []
-    seen: set[str] = set()
+    by_onboarding: dict[str, AdminFeedbackRow] = {}
     for event in events:
-        # Events are newest-first; keep only the most recent feedback per onboarding.
-        if event.onboarding_id is None or event.onboarding_id in seen:
+        # Events are newest-first. A single submission can split across two events (a server
+        # event carrying the text and a client lifecycle event with the score only), so the
+        # newest event anchors the row while text is backfilled from older events of the same
+        # onboarding instead of letting a score-only duplicate hide the answers.
+        onboarding_id = event.onboarding_id
+        if onboarding_id is None:
             continue
-        seen.add(event.onboarding_id)
         props = event.props or {}
         answers = props.get("answers")
         answers = answers if isinstance(answers, dict) else {}
         csat = props.get("csat")
-        row = onboardings.get(event.onboarding_id)
-        output.append(
-            AdminFeedbackRow(
-                id=event.onboarding_id,
+        helped = _clean_text(answers.get("helped"))
+        improve = _clean_text(answers.get("improve"))
+        entry = by_onboarding.get(onboarding_id)
+        if entry is None:
+            row = onboardings.get(onboarding_id)
+            entry = AdminFeedbackRow(
+                id=onboarding_id,
                 csat=csat if isinstance(csat, int) else None,
-                helped=_clean_text(answers.get("helped")),
-                improve=_clean_text(answers.get("improve")),
+                helped=helped,
+                improve=improve,
                 submitted_at=event.created_at.isoformat(),
                 device=row.device if row is not None else "desktop",
                 status=_row_status(row) if row is not None else "in_progress",
             )
-        )
+            by_onboarding[onboarding_id] = entry
+            output.append(entry)
+            continue
+        if entry.csat is None and isinstance(csat, int):
+            entry.csat = csat
+        if entry.helped is None and helped is not None:
+            entry.helped = helped
+        if entry.improve is None and improve is not None:
+            entry.improve = improve
     return output
 
 
