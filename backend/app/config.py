@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     model_legal: str = "claude-sonnet-4-6"
     model_banking: str = "claude-sonnet-4-6"
     model_menu: str = "claude-opus-4-8"
+    menu_parse_concurrency: int = 5
 
     registry_base_url: str = "https://recherche-entreprises.api.gouv.fr"
     registry_timeout_seconds: float = 3.0

@@ -1,4 +1,5 @@
 import json
+import logging
 import time
 from typing import Literal, TypeVar
 
@@ -6,6 +7,8 @@ import anthropic
 from pydantic import BaseModel
 
 from app.config import compute_cost_eur, settings
+
+logger = logging.getLogger("app.llm")
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -125,6 +128,7 @@ async def extract(
         usage.cost_eur = compute_cost_eur(model, usage.tokens_in, usage.tokens_out)
 
         if response.stop_reason == "refusal":
+            logger.warning("extract refused (model=%s, %s)", model, output_model.__name__)
             return ParseResult(status="couldnt_parse", data=None, usage=usage)
 
         text = next(
@@ -132,10 +136,23 @@ async def extract(
             None,
         )
         if not text:
+            logger.warning(
+                "extract returned no text (model=%s, %s, stop_reason=%s)",
+                model,
+                output_model.__name__,
+                response.stop_reason,
+            )
             return ParseResult(status="couldnt_parse", data=None, usage=usage)
 
         validated = output_model.model_validate(_loads_lenient(text))
         return ParseResult(status="ok", data=validated.model_dump(), usage=usage)
-    except Exception:
+    except Exception as exc:
         usage.latency_ms = int((time.monotonic() - started) * 1000)
+        logger.warning(
+            "extract failed (model=%s, %s): %s: %s",
+            model,
+            output_model.__name__,
+            type(exc).__name__,
+            exc,
+        )
         return ParseResult(status="couldnt_parse", data=None, usage=usage)

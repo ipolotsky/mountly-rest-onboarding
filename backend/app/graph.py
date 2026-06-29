@@ -1,8 +1,10 @@
+import asyncio
 from typing import Literal, TypedDict
 
 from langgraph.graph import END, StateGraph
 
 from app import parsers, registry
+from app.config import settings
 from app.ingest import IngestedFile
 from app.llm import ParseUsage
 from app.merge import merge_menu_groups
@@ -72,9 +74,16 @@ async def _parse_banking_node(state: OnboardingState) -> OnboardingState:
 async def _parse_menu_node(state: OnboardingState) -> OnboardingState:
     if state.get("document_type") != "menu":
         return state
+    files = state.get("files", [])
+    semaphore = asyncio.Semaphore(max(settings.menu_parse_concurrency, 1))
+
+    async def parse_one(ingested: IngestedFile) -> parsers.MenuFileParseOutput:
+        async with semaphore:
+            return await parsers.parse_menu_file(ingested)
+
+    outputs = await asyncio.gather(*(parse_one(ingested) for ingested in files))
     parsed_groups: list[MenuGroup] = []
-    for ingested in state.get("files", []):
-        output = await parsers.parse_menu_file(ingested)
+    for output in outputs:
         state["usages"].append(output.usage)
         parsed_groups.extend(output.groups)
     state["parsed_menu_groups"] = parsed_groups
